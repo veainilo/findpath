@@ -59,8 +59,8 @@ def bfs(start, end, grid):
 
 # 测试配置
 TEST_CONFIG = {
-    'small_map': (10, 10, 0.2),
-    'medium_map': (20, 20, 0.3),
-    'large_map': (30, 30, 0.25),
-    'maze_map': (40, 40, 0.28)
+    'small_map': (20, 20, 0.2),
+    'medium_map': (50, 50, 0.3),
+    'large_map': (100, 100, 0.25),
+    'maze_map': (200, 200, 0.28)
 } 

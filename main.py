@@ -47,26 +47,26 @@ if __name__ == "__main__":
               f"{obstacle_density:<8.2%}")
         print("-"*85)
 
-    # 更新可视化测试部分
-    print("\n运行随机地图测试...")
-    random_grid = generate_random_grid((15,15), obstacle_prob=0.25)
-    start = (0,0)
-    end = (14,14)
+    # # 更新可视化测试部分
+    # print("\n运行随机地图测试...")
+    # random_grid = generate_random_grid((100,100), obstacle_prob=0.25)
+    # start = (0,0)
+    # end = (99,99)
     
-    # 同时运行两种算法
-    jps = JPS(random_grid)
-    jps_path = jps.find_path(start, end)
-    astar = AStar(random_grid)
-    astar_path = astar.find_path(start, end)
+    # # 同时运行两种算法
+    # jps = JPS(random_grid)
+    # jps_path = jps.find_path(start, end)
+    # astar = AStar(random_grid)
+    # astar_path = astar.find_path(start, end)
     
-    # 显示对比结果
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14,6))
-    visualize(random_grid, jps_path, 
-             title=f"JPS 路径 (耗时: {jps.execution_time*1000:.2f}ms)", 
-             stats={'nodes':jps.nodes_explored, 'time':jps.execution_time*1000, 'jumps':jps.jump_calls},
-             ax=ax1)
-    visualize(random_grid, astar_path,
-             title=f"A* 路径 (耗时: {astar.execution_time*1000:.2f}ms)",
-             stats={'nodes':astar.nodes_explored, 'time':astar.execution_time*1000},
-             ax=ax2)
-    plt.show() 
+    # # 显示对比结果
+    # fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14,6))
+    # visualize(random_grid, jps_path, 
+    #          title=f"JPS 路径 (耗时: {jps.execution_time*1000:.2f}ms)", 
+    #          stats={'nodes':jps.nodes_explored, 'time':jps.execution_time*1000, 'jumps':jps.jump_calls},
+    #          ax=ax1)
+    # visualize(random_grid, astar_path,
+    #          title=f"A* 路径 (耗时: {astar.execution_time*1000:.2f}ms)",
+    #          stats={'nodes':astar.nodes_explored, 'time':astar.execution_time*1000},
+    #          ax=ax2)
+    # plt.show() 

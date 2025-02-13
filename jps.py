@@ -32,36 +32,43 @@ class JPS:
     def heuristic(self, node, goal):
         dx = abs(node.x - goal.x)
         dy = abs(node.y - goal.y)
-        return 10 * (dx + dy) + (14 - 20) * min(dx, dy)  # 修正后的Octile距离
+        return 10 * (dx + dy) + (14 - 2 * 10) * min(dx, dy)  # 修正为与A*相同的启发函数
 
     def jump(self, x, y, dx, dy, goal):
         cache_key = (x, y, dx, dy)
         if cache_key in self.jump_cache:
             return self.jump_cache[cache_key]
             
-        while True:
-            x += dx
-            y += dy
-            # 越界或障碍物检查
-            if not (0 <= x < self.height and 0 <= y < self.width) or self.grid[x][y] == 1:
-                return None
+        self.jump_calls += 1
+        nx, ny = x + dx, y + dy
+        
+        # 越界或障碍物检查
+        if not (0 <= nx < self.height and 0 <= ny < self.width) or self.grid[nx][ny] == 1:
+            self.jump_cache[cache_key] = None
+            return None
             
-            # 到达终点检查
-            if (x, y) == (goal.x, goal.y):
-                return (x, y)
+        # 到达终点检查
+        if (nx, ny) == (goal.x, goal.y):
+            self.jump_cache[cache_key] = (nx, ny)
+            return (nx, ny)
             
-            # 强制邻居检测（优化后的版本）
-            if self.has_forced_neighbor(x, y, dx, dy):
-                return (x, y)
+        # 强制邻居检测
+        if self.has_forced_neighbor(nx, ny, dx, dy):
+            self.jump_cache[cache_key] = (nx, ny)
+            return (nx, ny)
             
-            # 对角线移动时检查直线方向
-            if dx != 0 and dy != 0:
-                if self.jump(x, y, dx, 0, goal) or self.jump(x, y, 0, dy, goal):
-                    return (x, y)
-
-        # 缓存结果
-        self.jump_cache[cache_key] = result
-        return result
+        # 对角线移动时的优化检查
+        if dx != 0 and dy != 0:
+            # 只在必要时检查水平和垂直方向
+            if (self.is_blocked(nx-dx, ny) and not self.is_blocked(nx, ny+dy)) or \
+               (self.is_blocked(nx, ny-dy) and not self.is_blocked(nx+dx, ny)):
+                self.jump_cache[cache_key] = (nx, ny)
+                return (nx, ny)
+                
+        # 继续跳点搜索
+        next_point = self.jump(nx, ny, dx, dy, goal)
+        self.jump_cache[cache_key] = next_point
+        return next_point
 
     def find_path(self, start, end):
         start_time = time.time()
@@ -71,20 +78,40 @@ class JPS:
         open_list = []
         start_node = self.Node(*start)
         end_node = self.Node(*end)
+        start_node.h = self.heuristic(start_node, end_node)
+        start_node.f = start_node.h
         heapq.heappush(open_list, start_node)
         
-        closed_list = set()
-        g_values = {start_node: 0}  # g值缓存
+        closed_dict = {}
+        g_values = {start: 0}
         
-        while open_list:
-            current = heapq.heappop(open_list)
-            # 跳过已处理的节点（修复重复扩展问题）
-            if current.g > g_values.get((current.x, current.y), float('inf')):
-                continue
+        # 动态调整最大迭代次数
+        max_iterations = min(self.height * self.width // 2, 10000)
+        iterations = 0
+        
+        # 计算主要方向
+        dx_main = 1 if end_node.x > start_node.x else -1 if end_node.x < start_node.x else 0
+        dy_main = 1 if end_node.y > start_node.y else -1 if end_node.y < start_node.y else 0
+        
+        # 优化移动方向顺序
+        primary_moves = []
+        if dx_main != 0 and dy_main != 0:
+            primary_moves.append((dx_main, dy_main))
+        if dx_main != 0:
+            primary_moves.append((dx_main, 0))
+        if dy_main != 0:
+            primary_moves.append((0, dy_main))
             
-            self.nodes_explored += 1
-
-            if current.x == end_node.x and current.y == end_node.y:
+        # 添加次要方向
+        secondary_moves = [(dx, dy) for dx, dy in self.movements if (dx, dy) not in primary_moves]
+        optimized_movements = primary_moves + secondary_moves
+        
+        while open_list and iterations < max_iterations:
+            iterations += 1
+            current = heapq.heappop(open_list)
+            current_pos = (current.x, current.y)
+            
+            if current_pos == (end_node.x, end_node.y):
                 path = []
                 while current:
                     path.append((current.x, current.y))
@@ -95,29 +122,42 @@ class JPS:
                     total_jumps = sum(max(abs(path[i][0]-path[i-1][0]), abs(path[i][1]-path[i-1][1])) 
                                    for i in range(1, len(path)))
                     self.avg_jump_distance = total_jumps / (len(path)-1) if len(path)>1 else 0
-                    return self.smooth_path(path)
+                    return self.smooth_path(path[::-1])
                 return None
 
-            closed_list.add((current.x, current.y))
-            
-            neighbors = []
-            for dx, dy in self.movements:
+            if current_pos in closed_dict:
+                continue
+                
+            self.nodes_explored += 1
+            closed_dict[current_pos] = current
+
+            # 使用优化后的移动方向
+            successors = []
+            for dx, dy in optimized_movements:
                 jump_point = self.jump(current.x, current.y, dx, dy, end_node)
                 if jump_point:
-                    # 修正后的成本计算（原计算方式导致估值错误）
-                    step_x = jump_point[0] - current.x
-                    step_y = jump_point[1] - current.y
-                    distance = max(abs(step_x), abs(step_y))  # 正确计算对角线步数
-                    cost = 14 * distance if dx * dy != 0 else 10 * distance
-                    neighbors.append((jump_point, cost))
+                    nx, ny = jump_point
+                    if (nx, ny) not in closed_dict:
+                        dx_total = nx - current.x
+                        dy_total = ny - current.y
+                        
+                        # 优化代价计算
+                        if dx_total != 0 and dy_total != 0:
+                            diagonal_steps = min(abs(dx_total), abs(dy_total))
+                            straight_steps = max(abs(dx_total), abs(dy_total)) - diagonal_steps
+                            cost = 14 * diagonal_steps + 10 * straight_steps
+                        else:
+                            cost = 10 * (abs(dx_total) + abs(dy_total))
+                            
+                        # 计算到目标的启发值
+                        h_value = self.heuristic(self.Node(nx, ny), end_node)
+                        successors.append((jump_point, cost, h_value))
 
-            for neighbor, cost in neighbors:
-                nx, ny = neighbor
-                if (nx, ny) in closed_list:
-                    continue
-                
+            # 按照f值（g+h）对后继节点进行排序
+            successors.sort(key=lambda x: current.g + x[1] + x[2])
+            
+            for (nx, ny), cost, _ in successors:
                 new_g = current.g + cost
-                # 仅当新路径更优时更新
                 if new_g < g_values.get((nx, ny), float('inf')):
                     new_node = self.Node(nx, ny, current)
                     new_node.g = new_g
@@ -130,13 +170,24 @@ class JPS:
         return None
 
     def smooth_path(self, path):
+        if len(path) <= 2:
+            return path
+            
         smoothed = [path[0]]
-        for i in range(1, len(path)-1):
-            # 检查直线可达性
-            if not self.has_obstacle(smoothed[-1], path[i+1]):
-                continue
-            smoothed.append(path[i])
-        smoothed.append(path[-1])
+        current = 0
+        
+        while current < len(path) - 1:
+            # 尝试找到最远的可直接到达的点
+            for i in range(len(path)-1, current, -1):
+                if not self.has_obstacle(path[current], path[i]):
+                    smoothed.append(path[i])
+                    current = i
+                    break
+            else:
+                current += 1
+                if current < len(path):
+                    smoothed.append(path[current])
+                    
         return smoothed
 
     def has_obstacle(self, start, end):
