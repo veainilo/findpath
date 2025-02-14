@@ -64,6 +64,7 @@ class DynamicPathPlanner {
             this.h = 0;  // 启发式估计
             this.f = 0;  // 总代价
             this.turningCost = 0;  // 拐点代价
+            this.children = [];  // 添加子节点追踪
         }
     }
 
@@ -105,7 +106,7 @@ class DynamicPathPlanner {
     }
 
     async findPath(start, goal) {
-        this.nodesExplored = 0; // 重置计数器
+        this.nodesExplored = 0;
         const openSet = new PriorityQueue((a, b) => a.f - b.f);
         const closedSet = new Set();
 
@@ -116,7 +117,7 @@ class DynamicPathPlanner {
 
         while (!openSet.isEmpty()) {
             const currentNode = openSet.dequeue();
-            this.nodesExplored++; // 计数探索的节点
+            this.nodesExplored++;
 
             if (currentNode.pos.x === goal.x && currentNode.pos.y === goal.y) {
                 const path = [];
@@ -203,6 +204,8 @@ class DynamicPathPlanner {
                     // 计算总代价
                     neighborNode.f = neighborNode.g + neighborNode.h + neighborNode.turningCost;
 
+                    node.children.push(neighborNode);  // 维护父子关系
+
                     return neighborNode;
                 }
                 return null;
@@ -247,21 +250,42 @@ class DynamicPathPlanner {
             this.ctx.fillRect(obs.x * cellSize, obs.y * cellSize, cellSize, cellSize);
         }
 
-        // 绘制路径
+        // 再绘制路径线
         if (this.pathLine.length > 0) {
-            this.ctx.strokeStyle = '#00f';
-            this.ctx.lineWidth = 2;
+            this.ctx.strokeStyle = '#00f'; // 确保颜色设置正确
+            this.ctx.lineWidth = 3;        // 确保线宽足够
             this.ctx.beginPath();
-            this.ctx.moveTo(this.pathLine[0][0] * cellSize + cellSize / 2,
-                this.pathLine[0][1] * cellSize + cellSize / 2);
+            
+            // 起始点坐标转换
+            const startX = this.pathLine[0][0] * cellSize + cellSize/2;
+            const startY = this.pathLine[0][1] * cellSize + cellSize/2;
+            this.ctx.moveTo(startX, startY);
+
+            // 绘制路径线段
             for (let i = 1; i < this.pathLine.length; i++) {
-                this.ctx.lineTo(this.pathLine[i][0] * cellSize + cellSize / 2,
-                    this.pathLine[i][1] * cellSize + cellSize / 2);
+                const x = this.pathLine[i][0] * cellSize + cellSize/2;
+                const y = this.pathLine[i][1] * cellSize + cellSize/2;
+                this.ctx.lineTo(x, y);
             }
-            this.ctx.stroke();
+            this.ctx.stroke(); // 确保调用stroke绘制线条
+
+            // 最后绘制拐点标记（黄色点）
+            for (let i = 1; i < this.pathLine.length - 1; i++) {
+                if (this._isCorner(this.pathLine[i-1], this.pathLine[i], this.pathLine[i+1])) {
+                    const [x, y] = this.pathLine[i];
+                    this.ctx.fillStyle = '#ff0';
+                    this.ctx.beginPath();
+                    this.ctx.arc(
+                        x * cellSize + cellSize/2,
+                        y * cellSize + cellSize/2,
+                        cellSize/5, 0, Math.PI * 2
+                    );
+                    this.ctx.fill();
+                }
+            }
         }
 
-        // 绘制机器人位置
+        // 最后绘制机器人标记
         if (this.robotMarker) {
             this.ctx.fillStyle = '#0f0';
             this.ctx.beginPath();
@@ -338,16 +362,26 @@ class DynamicPathPlanner {
     }
 
     async updatePath() {
-        const start = performance.now();
+        const startTime = performance.now();
         const path = await this.findPath(this.robotMarker, this.goal);
-        const end = performance.now();
-        console.log(`路径规划时间: ${end - start} ms`);
-        if (path) {
+        const endTime = performance.now();
+        
+        console.log(`路径规划耗时: ${(endTime - startTime).toFixed(2)}ms`);
+        console.log(`探索节点数: ${this.nodesExplored}`);
+        console.log('规划路径:', path);
+
+        if (path && path.length > 0) {
             this.pathLine = path;
-            // 更新机器人位置到路径的下一个点
+            // 更新机器人位置到下一个路径点
             if (path.length > 1) {
-                this.robotMarker = { x: path[1][0], y: path[1][1] };
+                this.robotMarker = { 
+                    x: path[1][0], 
+                    y: path[1][1] 
+                };
             }
+        } else {
+            console.warn('路径规划失败');
+            this.pathLine = [];
         }
     }
 
@@ -356,6 +390,223 @@ class DynamicPathPlanner {
         if (this.animationFrame) {
             cancelAnimationFrame(this.animationFrame);
         }
+    }
+
+    async findFirstCorner(start, goal) {
+        this.nodesExplored = 0;
+        const openSet = new PriorityQueue((a, b) => a.f - b.f);
+        const closedSet = new Set();
+
+        const startNode = new DynamicPathPlanner.Node(start);
+        startNode.h = this.heuristic(start, goal);
+        startNode.f = startNode.h;
+        openSet.enqueue(startNode);
+
+        let firstCorner = null;
+
+        while (!openSet.isEmpty()) {
+            const currentNode = openSet.dequeue();
+            this.nodesExplored++;
+
+            // 找到目标点直接返回完整路径
+            if (currentNode.pos.x === goal.x && currentNode.pos.y === goal.y) {
+                return this._constructFullPath(currentNode);
+            }
+
+            // 检测拐点（当前节点有父节点且父节点有父节点）
+            if (currentNode.parent && currentNode.parent.parent) {
+                const prevDir = {
+                    x: currentNode.parent.pos.x - currentNode.parent.parent.pos.x,
+                    y: currentNode.parent.pos.y - currentNode.parent.parent.pos.y
+                };
+                const currentDir = {
+                    x: currentNode.pos.x - currentNode.parent.pos.x,
+                    y: currentNode.pos.y - currentNode.parent.pos.y
+                };
+
+                // 发现方向变化时记录第一个拐点
+                if (prevDir.x !== currentDir.x || prevDir.y !== currentDir.y) {
+                    firstCorner = currentNode;
+                    break;
+                }
+            }
+
+            const posKey = `${currentNode.pos.x},${currentNode.pos.y}`;
+            if (closedSet.has(posKey)) continue;
+            closedSet.add(posKey);
+
+            const neighbors = this.getNeighbors(currentNode, goal);
+            for (const neighbor of neighbors) {
+                const neighborKey = `${neighbor.pos.x},${neighbor.pos.y}`;
+                if (closedSet.has(neighborKey)) continue;
+
+                const existing = openSet.find(n =>
+                    `${n.pos.x},${n.pos.y}` === neighborKey);
+
+                if (!existing || neighbor.f < existing.f) {
+                    if (existing) openSet.remove(existing);
+                    openSet.enqueue(neighbor);
+                }
+            }
+        }
+
+        // 构造返回结果：包含已走路径和剩余方向
+        return {
+            partialPath: this._constructPartialPath(firstCorner || openSet.dequeue()),
+            remainingDirection: firstCorner ? this._getRemainingDirection(firstCorner, goal) : null
+        };
+    }
+
+    _constructFullPath(endNode) {
+        const path = [];
+        let current = endNode;
+        while (current) {
+            path.push([current.pos.x, current.pos.y]);
+            current = current.parent;
+        }
+        return {
+            partialPath: path.reverse(),
+            remainingDirection: null
+        };
+    }
+
+    _constructPartialPath(node) {
+        const path = [];
+        let current = node;
+        while (current) {
+            path.push([current.pos.x, current.pos.y]);
+            current = current.parent;
+        }
+        return path.reverse();
+    }
+
+    _getRemainingDirection(node, goal) {
+        // 计算从拐点到目标的大致方向
+        const dx = goal.x - node.pos.x;
+        const dy = goal.y - node.pos.y;
+        return {
+            x: dx !== 0 ? dx / Math.abs(dx) : 0,
+            y: dy !== 0 ? dy / Math.abs(dy) : 0
+        };
+    }
+
+    async findPathWithCorners(start, goal, maxCorners = 1) {
+        this.nodesExplored = 0;
+        const openSet = new PriorityQueue((a, b) => a.f - b.f);
+        const closedSet = new Set();
+        const cornerNodes = [];
+
+        const startNode = new DynamicPathPlanner.Node(start);
+        startNode.h = this.heuristic(start, goal);
+        startNode.f = startNode.h;
+        openSet.enqueue(startNode);
+
+        let lastDirection = null;
+        let current = startNode;
+
+        while (!openSet.isEmpty()) {
+            current = openSet.dequeue();
+            this.nodesExplored++;
+
+            if (current.pos.x === goal.x && current.pos.y === goal.y) {
+                break;
+            }
+
+            if (current.parent) {
+                const newDirection = {
+                    x: current.pos.x - current.parent.pos.x,
+                    y: current.pos.y - current.parent.pos.y
+                };
+
+                if (lastDirection &&
+                    (newDirection.x !== lastDirection.x ||
+                        newDirection.y !== lastDirection.y)) {
+                    cornerNodes.push(current);
+                    if (cornerNodes.length >= maxCorners) {
+                        break;
+                    }
+                }
+                lastDirection = newDirection;
+            }
+
+            const posKey = `${current.pos.x},${current.pos.y}`;
+            if (closedSet.has(posKey)) continue;
+            closedSet.add(posKey);
+
+            const neighbors = this.getNeighbors(current, goal);
+            for (const neighbor of neighbors) {
+                const neighborKey = `${neighbor.pos.x},${neighbor.pos.y}`;
+                if (closedSet.has(neighborKey)) continue;
+
+                const existing = openSet.find(n =>
+                    `${n.pos.x},${n.pos.y}` === neighborKey);
+
+                if (!existing || neighbor.f < existing.f) {
+                    if (existing) openSet.remove(existing);
+                    openSet.enqueue(neighbor);
+                }
+            }
+        }
+
+        return this._constructMultiCornerPath(cornerNodes, current, goal, maxCorners);
+    }
+
+    _constructMultiCornerPath(corners, endNode, goal, maxCorners) {
+        const fullPath = [];
+        let current = endNode;
+
+        // 构建完整路径
+        while (current) {
+            fullPath.unshift([current.pos.x, current.pos.y]);
+            current = current.parent;
+        }
+
+        // 如果找到足够拐角
+        if (corners.length >= maxCorners) {
+            // 找到最后一个拐点的位置
+            const lastCorner = corners[maxCorners - 1];
+
+            // 包含拐点后的10个节点（可根据需要调整）
+            let extendCount = 0;
+            let extendNode = lastCorner;
+            const extendedPath = [];
+
+            while (extendNode && extendCount < 10) {
+                extendedPath.push([extendNode.pos.x, extendNode.pos.y]);
+                // 优先使用子节点
+                if (extendNode.children.length > 0) {
+                    extendNode = extendNode.children[0];
+                } else {
+                    // 没有子节点时尝试继续搜索
+                    const neighbors = this.getNeighbors(extendNode, goal);
+                    if (neighbors.length > 0) {
+                        extendNode = neighbors[0];
+                    } else {
+                        break;
+                    }
+                }
+                extendCount++;
+            }
+
+            return {
+                path: fullPath.concat(extendedPath),
+                remaining: [],  // 不再保留剩余路径
+                cornersFound: corners.length
+            };
+        }
+
+        // 未找到足够拐角时返回完整路径
+        return {
+            path: fullPath,
+            remaining: [],
+            cornersFound: corners.length
+        };
+    }
+
+    _isCorner(prev, current, next) {
+        const dir1 = { x: current[0] - prev[0], y: current[1] - prev[1] };
+        const dir2 = { x: next[0] - current[0], y: next[1] - current[1] };
+        return dir1.x !== dir2.x || dir1.y !== dir2.y;
     }
 }
 
