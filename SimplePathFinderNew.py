@@ -24,35 +24,37 @@ class SimplePathFinder:
         self.visited.add(current)
         
         for _ in range(self.max_steps):
-            # 每次迭代都检测完整路径
-            if self._direct_path_clear(current, end):
-                path.append(end)
-                if self._verify_full_path(path):
+            # 持续检测直到终点或无法前进
+            while True:
+                # 直接可达则完成
+                if self._direct_path_clear(current, end):
+                    path.append(end)
                     return path
-                else:
-                    path.pop()  # 移除不可行的终点
-            
-            # 寻找新的碰撞点（可能变化）
-            collision = self._find_first_collision(current, end)
-            if not collision:
-                return path + [end] if self._direct_path_clear(current, end) else None
-            
-            # 获取绕行点（考虑后续路径）
-            detour_points = self._get_safe_detours(collision, current)
-            if not detour_points:
-                # 回溯机制
-                if len(path) > 1:
-                    current = path[-2]
-                    path = path[:-1]
-                    continue
-                else:
-                    return None
-            
-            # 选择最优绕行点（考虑后续障碍）
-            current = self._select_best_detour(detour_points, end)
-            path.append(current)
-            self.visited.add(current)
-        
+                
+                # 获取当前碰撞点
+                collision = self._find_first_collision(current, end)
+                if not collision:
+                    path.append(end)
+                    return path
+                
+                # 获取并选择绕行点
+                detour_points = self._get_safe_detours(collision, current)
+                if not detour_points:
+                    # 回溯处理
+                    if len(path) > 1:
+                        current = path[-2]
+                        path.pop()
+                        continue
+                    else:
+                        return None
+                    
+                # 选择最佳绕行点并更新状态
+                best_point = self._select_best_detour(detour_points, end)
+                path.append(best_point)
+                self.visited.add(best_point)
+                current = best_point
+                break  # 处理下一个障碍
+                
         return None
 
     def _direct_path_clear(self, a, b):
