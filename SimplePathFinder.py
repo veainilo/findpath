@@ -1,5 +1,8 @@
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib import rcParams
+rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei', 'WenQuanYi Micro Hei']  # 设置中文字体
+rcParams['axes.unicode_minus'] = False  # 解决负号显示问题
 
 class SimplePathFinder:
     def __init__(self, grid):
@@ -97,30 +100,19 @@ class SimplePathFinder:
         return abs(a[0]-b[0]) + abs(a[1]-b[1])  # 曼哈顿距离
 
     def _bresenham_line(self, start, end):
-        """生成两点间直线经过的格子坐标"""
+        """生成两点间直线经过的格子坐标（修正坐标系）"""
         x0, y0 = start
         x1, y1 = end
+        # 移除steep转换，保持原始坐标系
         dx = abs(x1 - x0)
         dy = abs(y1 - y0)
-        steep = dy > dx
-        
-        if steep:
-            x0, y0 = y0, x0
-            x1, y1 = y1, x1
-            dx, dy = dy, dx
-            
-        if x0 > x1:
-            x0, x1 = x1, x0
-            y0, y1 = y1, y0
-            
         error = 0
         y_step = 1 if y0 < y1 else -1
         y = y0
         points = []
         
         for x in range(x0, x1 + 1):
-            coord = (y, x) if steep else (x, y)
-            points.append(coord)
+            points.append((x, y))
             error += dy
             if 2 * error >= dx:
                 y += y_step
@@ -128,47 +120,64 @@ class SimplePathFinder:
         return points
 
     # 新增可视化方法
-    def plot_path(self, path, title='Path Visualization'):
-        """
-        可视化路径和障碍物
-        :param path: 路径列表
-        :param title: 图表标题
-        """
-        plt.figure(figsize=(8, 8))
+    def plot_path(self, path, title='路径可视化'):
+        """优化中文显示的可视化方法"""
+        plt.figure(figsize=(10, 10), dpi=100)
         
-        # 转置网格以适应坐标系
-        grid_array = np.array(self.grid).T
-        plt.imshow(grid_array, cmap='Greys', origin='lower', 
-                  vmin=0, vmax=1, alpha=0.3)
-        
-        # 绘制路径
+        # 绘制网格背景
+        plt.grid(True, which='both', color='lightgray', linestyle='-', linewidth=0.8)
+        plt.gca().set_axisbelow(True)
+
+        # 显示网格地图
+        grid_array = np.array(self.grid)
+        plt.imshow(grid_array, cmap='Greys', origin='lower',
+                  extent=(-0.5, self.cols-0.5, -0.5, self.rows-0.5),
+                  vmin=0, vmax=1, alpha=0.5)
+
+        # 绘制障碍物（优化中文图例）
+        obstacle_y, obstacle_x = np.where(grid_array == 1)
+        plt.scatter(obstacle_x + 0.5, obstacle_y + 0.5,
+                   c='darkred', s=1500, marker='s',
+                   edgecolor='black', linewidth=1.5,
+                   alpha=0.7, label='障碍区域')
+
+        # 绘制路径（带箭头指示）
         if path:
-            x_coords = [p[0] for p in path]
-            y_coords = [p[1] for p in path]
-            plt.plot(x_coords, y_coords, 'r-', linewidth=2)
-            plt.scatter(x_coords, y_coords, c='red', s=40)
+            y_coords = [p[0] + 0.5 for p in path]  # 显示在格子中心
+            x_coords = [p[1] + 0.5 for p in path]
+            plt.plot(x_coords, y_coords, 'b-', linewidth=3, alpha=0.7)
+            plt.scatter(x_coords, y_coords, c='blue', s=100, edgecolor='white', zorder=4)
             
-        # 标记起点和终点
+            # 添加路径箭头
+            for i in range(len(x_coords)-1):
+                dx = x_coords[i+1] - x_coords[i]
+                dy = y_coords[i+1] - y_coords[i]
+                plt.arrow(x_coords[i], y_coords[i], dx*0.8, dy*0.8, 
+                         head_width=0.3, head_length=0.4, 
+                         fc='dodgerblue', ec='navy', linewidth=2, zorder=5)
+        
+        # 标记起点终点（带阴影效果）
         if path:
             start = path[0]
             end = path[-1]
-            plt.scatter(start[0], start[1], c='green', s=100, marker='s', label='Start')
-            plt.scatter(end[0], end[1], c='blue', s=100, marker='*', label='End')
+            plt.scatter(start[1]+0.5, start[0]+0.5, 
+                       c='limegreen', s=400, marker='s',
+                       edgecolor='darkgreen', linewidth=2,
+                       zorder=5, label='起点')
+            plt.scatter(end[1]+0.5, end[0]+0.5, 
+                       c='gold', s=600, marker='*',
+                       edgecolor='darkorange', linewidth=2,
+                       zorder=5, label='终点')
         
-        # 增强障碍物显示
-        obstacle_x, obstacle_y = np.where(np.array(self.grid).T == 1)
-        plt.scatter(obstacle_x, obstacle_y, c='black', s=100, marker='s', alpha=0.5, label='Obstacles')
+        # 优化中文标注
+        plt.title(title, fontsize=16, pad=20, fontweight='bold')
+        plt.xlabel('X 坐标', fontsize=12, labelpad=10)
+        plt.ylabel('Y 坐标', fontsize=12, labelpad=10)
         
-        # 添加坐标标注
-        for x in range(self.rows):
-            for y in range(self.cols):
-                plt.text(x, y, f'({x},{y})', fontsize=8, ha='center', va='center', alpha=0.5)
-        
-        plt.title(title)
-        plt.xlabel('X')
-        plt.ylabel('Y')
-        plt.grid(True, which='both', color='lightgray', linestyle='--')
-        plt.legend()
+        plt.xticks(range(self.cols))
+        plt.yticks(range(self.rows))
+        plt.legend(loc='upper right', fontsize=10)
+        plt.tight_layout()
         plt.show()
 
 # 修改测试用例部分
