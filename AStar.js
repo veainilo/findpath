@@ -86,3 +86,22 @@ class AStar {
 }
 
 export { AStar, Node };
+
+if (process.argv[1].includes('AStar.js')) { // 直接执行时运行
+    const testGrid = [
+        [0, 0, 0, 0],
+        [0, 1, 1, 0],
+        [0, 0, 0, 0],
+        [0, 1, 0, 0]
+    ];
+    
+    const planner = new AStar(testGrid);
+    const result = planner.findPath([0, 0], [3, 3]);
+    
+    console.log('路径结果:', result);
+    console.log('统计信息:', {
+        nodes: planner.nodesExplored,
+        time: planner.executionTime.toFixed(2) + 'ms',
+        length: planner.pathLength
+    });
+}

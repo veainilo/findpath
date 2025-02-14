@@ -28,7 +28,7 @@ class PriorityQueue {
     }
 
     dequeue() {
-        return this.elements.shift().element;
+        return this.elements.shift()?.element;
     }
 
     isEmpty() {
@@ -39,9 +39,12 @@ class PriorityQueue {
 class JPS {
     constructor(grid) {
         this.grid = grid;
-        this.height = grid.length;
-        this.width = grid[0].length;
-        this.movements = [[0, 1], [1, 0], [0, -1], [-1, 0], [1, 1], [1, -1], [-1, 1], [-1, -1]];
+        this.height = grid.length;     // 行数
+        this.width = grid[0].length;   // 列数
+        this.movements = [
+            [0, 1], [1, 0], [0, -1], [-1, 0],  // 直线移动
+            [1, 1], [1, -1], [-1, 1], [-1, -1]  // 对角线移动
+        ];
         this.nodesExplored = 0;
         this.jumpCalls = 0;
         this.executionTime = 0;
@@ -53,245 +56,230 @@ class JPS {
     heuristic(node, goal) {
         const dx = Math.abs(node.x - goal.x);
         const dy = Math.abs(node.y - goal.y);
-        return 10 * (dx + dy) - 6 * Math.min(dx, dy);
-    }
-
-    jump(x, y, dx, dy, goal) {
-        console.log(`\n=== 跳跃检测开始 (${x},${y}) 方向[${dx},${dy}] ===`);
-        
-        const cacheKey = `${x},${y},${dx},${dy}`;
-        if (this.jumpCache[cacheKey] !== undefined) {
-            console.log(`缓存命中: ${this.jumpCache[cacheKey]}`);
-            return this.jumpCache[cacheKey];
-        }
-        this.jumpCalls += 1;
-
-        let nx = x + dx;
-        let ny = y + dy;
-
-        if (this.isBlocked(x, y)) {
-            this.jumpCache[cacheKey] = null;
-            return null;
-        }
-
-        if (x === goal.x && y === goal.y) {
-            this.jumpCache[cacheKey] = [x, y];
-            return [x, y];
-        }
-
-        // 调整递归终止条件
-        if (this.isBlocked(nx, ny)) {
-            this.jumpCache[cacheKey] = null;
-            return null;
-        }
-
-        // 添加对角线移动的可行路径检测
-        if (dx !== 0 && dy !== 0) {
-            if (this.isBlocked(x + dx, y) || this.isBlocked(x, y + dy)) {
-                // 允许单侧阻挡时继续检测
-                const horizontal = this.jump(nx, ny, dx, 0, goal);
-                const vertical = this.jump(nx, ny, 0, dy, goal);
-                if (horizontal || vertical) {
-                    this.jumpCache[cacheKey] = [nx, ny];
-                    return [nx, ny];
-                }
-            }
-        }
-
-        // 检查强制邻居
-        const hasForced = this.hasForcedNeighbor(nx, ny, dx, dy);
-        console.log(`强制邻居检查结果: ${hasForced ? '存在' : '无'}`);
-        
-        if (hasForced) {
-            this.jumpCache[cacheKey] = [nx, ny];
-            return [nx, ny];
-        }
-
-        // 对角线移动时需要检查水平和垂直方向
-        if (dx !== 0 && dy !== 0) {
-            // 恢复正确的节点检测
-            const horizontal = this.jump(nx, ny, dx, 0, goal);
-            const vertical = this.jump(nx, ny, 0, dy, goal);
-            if (horizontal !== null || vertical !== null) {
-                this.jumpCache[cacheKey] = [nx, ny];
-                return [nx, ny];
-            }
-
-            // 修正强制邻居检测位置
-            const dirs = [
-                [dx, 0],  // 水平方向
-                [0, dy],  // 垂直方向
-                [dx, dy]  // 对角线方向
-            ];
-
-            for (const [ndx, ndy] of dirs) {
-                // 修正为检测下一个节点而非当前节点
-                if (this.hasForcedNeighbor(nx, ny, ndx, ndy)) {
-                    this.jumpCache[cacheKey] = [nx, ny];
-                    return [nx, ny];
-                }
-            }
-        }
-
-        // 继续沿原方向跳跃
-        const nextPoint = this.jump(nx, ny, dx, dy, goal);
-        console.log(`递归跳跃结果: ${nextPoint ? `(${nextPoint[0]},${nextPoint[1]})` : '无'}`);
-        
-        this.jumpCache[cacheKey] = nextPoint;
-        return nextPoint;
+        return Math.sqrt(dx * dx + dy * dy) * 10;
     }
 
     findPath(start, end) {
+        console.log('开始寻路...');
+        console.log(`起点: (${start[0]}, ${start[1]})`);
+        console.log(`终点: (${end[0]}, ${end[1]})`);
+
         const startTime = performance.now();
         this.nodesExplored = 0;
         this.jumpCalls = 0;
 
         const openList = new PriorityQueue();
-        const startNode = new Node(...start);
-        const endNode = new Node(...end);
+        const startNode = new Node(start[0], start[1]);
+        const endNode = new Node(end[0], end[1]);
+        const closedSet = new Set();
+        
         startNode.g = 0;
         startNode.h = this.heuristic(startNode, endNode);
         startNode.f = startNode.g + startNode.h;
         openList.enqueue(startNode, startNode.f);
 
-        const closedDict = {};
-        const gValues = { [`${start[0]},${start[1]}`]: 0 };
-        const maxIterations = Math.min(this.height * this.width / 2, 10000);
         let iterations = 0;
-
-        while (!openList.isEmpty() && iterations < maxIterations) {
-            console.log(`[迭代 ${iterations}] 开放列表大小: ${openList.elements.length}, 关闭列表大小: ${Object.keys(closedDict).length}`);
-            
+        while (!openList.isEmpty()) {
+            iterations++;
             const current = openList.dequeue();
-            console.log(`当前节点: (${current.x},${current.y}) g=${current.g}, h=${current.h}, f=${current.f}`);
+            console.log(`\n迭代 ${iterations}:`);
+            console.log(`当前节点: (${current.x}, ${current.y}), f=${current.f}, g=${current.g}, h=${current.h}`);
 
             if (current.x === endNode.x && current.y === endNode.y) {
+                console.log('找到目标节点!');
                 const path = [];
-                let temp = current;
-                while (temp) {
-                    path.push([temp.x, temp.y]);
-                    temp = temp.parent;
+                let node = current;
+                while (node) {
+                    path.unshift([node.x, node.y]);
+                    node = node.parent;
                 }
                 this.executionTime = performance.now() - startTime;
                 this.pathLength = path.length;
-                return path; // Directly returning the path without smoothing
+                return path;
             }
 
-            if (closedDict[`${current.x},${current.y}`]) continue;
-
-            this.nodesExplored += 1;
-            closedDict[`${current.x},${current.y}`] = current;
-
-            for (const [dx, dy] of this.movements) {
-                console.log(`检查方向: [${dx},${dy}]`);
-                
-                // 处理直线移动
-                if (dx === 0 || dy === 0) {
-                    const jumpPoint = this.jump(current.x, current.y, dx, dy, endNode);
-                    console.log(`直线跳跃结果: ${jumpPoint ? `(${jumpPoint[0]},${jumpPoint[1]})` : '无'}`);
-                    
-                    if (jumpPoint) {
-                        const nx = jumpPoint[0];
-                        const ny = jumpPoint[1];
-
-                        // console.log(`Jump Point found: (${nx}, ${ny})`);
-
-                        if (this.isBlocked(nx, ny)) {
-                            // console.log(`Jump Point (${nx}, ${ny}) is blocked.`);
-                            continue;
-                        }
-
-                        if (!closedDict[`${nx},${ny}`]) {
-                            const dxTotal = nx - current.x;
-                            const dyTotal = ny - current.y;
-
-                            const steps = Math.abs(dxTotal) + Math.abs(dyTotal);
-                            const isDiagonal = dxTotal !== 0 && dyTotal !== 0;
-                            const cost = isDiagonal ? 14 * Math.min(Math.abs(dxTotal), Math.abs(dyTotal)) + 10 * Math.abs(Math.abs(dxTotal) - Math.abs(dyTotal))
-                                : 10 * steps;
-
-                            const newG = current.g + cost;
-                            if (newG < (gValues[`${nx},${ny}`] || Infinity)) {
-                                const newNode = new Node(nx, ny, current);
-                                newNode.g = newG;
-                                newNode.h = this.heuristic(newNode, endNode);
-                                newNode.f = newNode.g + newNode.h;
-                                gValues[`${nx},${ny}`] = newG;
-                                openList.enqueue(newNode, newNode.f);
-                            }
-                        }
-                    }
-                }
-                // 处理对角线移动
-                else {
-                    console.log('处理对角线移动...');
-                    // 先检查水平方向
-                    const horizontalJump = this.jump(current.x, current.y, dx, 0, endNode);
-                    // 再检查垂直方向
-                    const verticalJump = this.jump(current.x, current.y, 0, dy, endNode);
-
-                    if (horizontalJump || verticalJump) {
-                        const jumpPoint = this.jump(current.x, current.y, dx, dy, endNode);
-                        if (jumpPoint) {
-                            const nx = jumpPoint[0];
-                            const ny = jumpPoint[1];
-
-                            // console.log(`Jump Point found: (${nx}, ${ny})`);
-
-                            if (this.isBlocked(nx, ny)) {
-                                // console.log(`Jump Point (${nx}, ${ny}) is blocked.`);
-                                continue;
-                            }
-
-                            if (!closedDict[`${nx},${ny}`]) {
-                                const dxTotal = nx - current.x;
-                                const dyTotal = ny - current.y;
-
-                                const steps = Math.abs(dxTotal) + Math.abs(dyTotal);
-                                const isDiagonal = dxTotal !== 0 && dyTotal !== 0;
-                                const cost = isDiagonal ? 14 * Math.min(Math.abs(dxTotal), Math.abs(dyTotal)) + 10 * Math.abs(Math.abs(dxTotal) - Math.abs(dyTotal))
-                                    : 10 * steps;
-
-                                const newG = current.g + cost;
-                                if (newG < (gValues[`${nx},${ny}`] || Infinity)) {
-                                    const newNode = new Node(nx, ny, current);
-                                    newNode.g = newG;
-                                    newNode.h = this.heuristic(newNode, endNode);
-                                    newNode.f = newNode.g + newNode.h;
-                                    gValues[`${nx},${ny}`] = newG;
-                                    openList.enqueue(newNode, newNode.f);
-                                }
-                            }
-                        }
-                    }
-                }
+            const key = `${current.x},${current.y}`;
+            if (closedSet.has(key)) {
+                console.log(`节点 (${current.x}, ${current.y}) 已在关闭列表中`);
+                continue;
             }
+            closedSet.add(key);
 
-            // 在终点检测处添加详细日志
-            if ((Math.abs(current.x - endNode.x) + Math.abs(current.y - endNode.y)) <= 2) {
-                console.log('进入终点检测范围');
-                const isReachable = this.hasObstacle([current.x, current.y], [endNode.x, endNode.y]);
-                console.log(`终点可达性检查: ${isReachable ? '不可达' : '可达'}`);
-                
-                if (!isReachable) {
-                    console.log('构建最终路径:');
-                    let temp = current;
-                    const path = [];
-                    while (temp) {
-                        console.log(`<- (${temp.x},${temp.y})`);
-                        path.unshift([temp.x, temp.y]); // 使用unshift确保正确顺序
-                        temp = temp.parent;
-                    }
-                    // 添加终点到路径
-                    path.push([endNode.x, endNode.y]);
-                    this.pathLength = path.length;
-                    return path;
+            const neighbors = this.identifySuccessors(current, endNode);
+            console.log(`找到 ${neighbors.length} 个后继节点`);
+            for (const neighbor of neighbors) {
+                if (!closedSet.has(`${neighbor.x},${neighbor.y}`)) {
+                    console.log(`添加后继节点: (${neighbor.x}, ${neighbor.y}), f=${neighbor.f}`);
+                    openList.enqueue(neighbor, neighbor.f);
                 }
             }
         }
 
+        console.log('未找到路径');
         this.executionTime = performance.now() - startTime;
         return null;
+    }
+
+    identifySuccessors(node, endNode) {
+        const successors = [];
+        const neighbors = this.findNeighbors(node);
+        console.log(`\n为节点 (${node.x}, ${node.y}) 寻找后继节点`);
+        console.log(`找到 ${neighbors.length} 个邻居节点`);
+
+        for (const neighbor of neighbors) {
+            console.log(`\n检查邻居节点 (${neighbor.x}, ${neighbor.y})`);
+            const dx = neighbor.x - node.x;
+            const dy = neighbor.y - node.y;
+            console.log(`移动方向: [${dx}, ${dy}]`);
+
+            const jumpPoint = this.jump(neighbor.x, neighbor.y, dx, dy, endNode);
+            if (jumpPoint) {
+                const [jx, jy] = jumpPoint;
+                console.log(`找到跳点: (${jx}, ${jy})`);
+                const jumpNode = new Node(jx, jy, node);
+                const d = Math.sqrt(
+                    Math.pow(jumpNode.x - node.x, 2) + 
+                    Math.pow(jumpNode.y - node.y, 2)
+                );
+                jumpNode.g = node.g + d * 10;
+                jumpNode.h = this.heuristic(jumpNode, endNode);
+                jumpNode.f = jumpNode.g + jumpNode.h;
+                successors.push(jumpNode);
+            } else {
+                console.log('未找到跳点');
+            }
+        }
+
+        return successors;
+    }
+
+    findNeighbors(node) {
+        const neighbors = [];
+        const parent = node.parent;
+
+        if (!parent) {
+            console.log(`\n节点 (${node.x}, ${node.y}) 没有父节点，检查所有方向`);
+            for (const [dx, dy] of this.movements) {
+                const x = node.x + dx;
+                const y = node.y + dy;
+                if (this.isWalkable(x, y)) {
+                    console.log(`添加邻居: (${x}, ${y})`);
+                    neighbors.push(new Node(x, y, node));
+                }
+            }
+            return neighbors;
+        }
+
+        console.log(`\n节点 (${node.x}, ${node.y}) 的父节点是 (${parent.x}, ${parent.y})`);
+        const dx = Math.sign(node.x - parent.x);
+        const dy = Math.sign(node.y - parent.y);
+        console.log(`移动方向: [${dx}, ${dy}]`);
+
+        if (dx !== 0 && dy !== 0) {
+            const canWalkHorizontal = this.isWalkable(node.x + dx, node.y);
+            const canWalkVertical = this.isWalkable(node.x, node.y + dy);
+            const canWalkDiagonal = this.isWalkable(node.x + dx, node.y + dy);
+
+            if (canWalkDiagonal) {
+                console.log(`可以对角线移动到: (${node.x + dx}, ${node.y + dy})`);
+                neighbors.push(new Node(node.x + dx, node.y + dy, node));
+            }
+            if (canWalkHorizontal) {
+                console.log(`可以水平移动到: (${node.x + dx}, ${node.y})`);
+                neighbors.push(new Node(node.x + dx, node.y, node));
+            }
+            if (canWalkVertical) {
+                console.log(`可以垂直移动到: (${node.x}, ${node.y + dy})`);
+                neighbors.push(new Node(node.x, node.y + dy, node));
+            }
+        } else {
+            if (dx !== 0) {
+                if (this.isWalkable(node.x + dx, node.y)) {
+                    console.log(`可以水平移动到: (${node.x + dx}, ${node.y})`);
+                    neighbors.push(new Node(node.x + dx, node.y, node));
+
+                    if (!this.isWalkable(node.x, node.y + 1) && 
+                        this.isWalkable(node.x + dx, node.y + 1)) {
+                        console.log(`发现强制邻居: (${node.x + dx}, ${node.y + 1})`);
+                        neighbors.push(new Node(node.x + dx, node.y + 1, node));
+                    }
+                    if (!this.isWalkable(node.x, node.y - 1) && 
+                        this.isWalkable(node.x + dx, node.y - 1)) {
+                        console.log(`发现强制邻居: (${node.x + dx}, ${node.y - 1})`);
+                        neighbors.push(new Node(node.x + dx, node.y - 1, node));
+                    }
+                }
+            } else {
+                if (this.isWalkable(node.x, node.y + dy)) {
+                    console.log(`可以垂直移动到: (${node.x}, ${node.y + dy})`);
+                    neighbors.push(new Node(node.x, node.y + dy, node));
+
+                    if (!this.isWalkable(node.x + 1, node.y) && 
+                        this.isWalkable(node.x + 1, node.y + dy)) {
+                        console.log(`发现强制邻居: (${node.x + 1}, ${node.y + dy})`);
+                        neighbors.push(new Node(node.x + 1, node.y + dy, node));
+                    }
+                    if (!this.isWalkable(node.x - 1, node.y) && 
+                        this.isWalkable(node.x - 1, node.y + dy)) {
+                        console.log(`发现强制邻居: (${node.x - 1}, ${node.y + dy})`);
+                        neighbors.push(new Node(node.x - 1, node.y + dy, node));
+                    }
+                }
+            }
+        }
+
+        return neighbors;
+    }
+
+    jump(x, y, dx, dy, endNode) {
+        console.log(`\n跳跃检测: 从 (${x}, ${y}) 向 [${dx}, ${dy}] 方向`);
+        const nx = x + dx;
+        const ny = y + dy;
+
+        if (!this.isWalkable(nx, ny)) {
+            console.log(`位置 (${nx}, ${ny}) 不可行走`);
+            return null;
+        }
+
+        if (nx === endNode.x && ny === endNode.y) {
+            console.log(`到达目标点 (${nx}, ${ny})`);
+            return [nx, ny];
+        }
+
+        if (dx !== 0 && dy !== 0) {
+            if ((!this.isWalkable(nx - dx, ny) && this.isWalkable(nx - dx, ny + dy)) ||
+                (!this.isWalkable(nx, ny - dy) && this.isWalkable(nx + dx, ny - dy))) {
+                console.log(`在 (${nx}, ${ny}) 发现强制邻居`);
+                return [nx, ny];
+            }
+
+            if (this.jump(nx, ny, dx, 0, endNode) || this.jump(nx, ny, 0, dy, endNode)) {
+                console.log(`在 (${nx}, ${ny}) 发现跳点`);
+                return [nx, ny];
+            }
+        } else {
+            if (dx !== 0) {
+                if ((!this.isWalkable(nx, ny + 1) && this.isWalkable(nx + dx, ny + 1)) ||
+                    (!this.isWalkable(nx, ny - 1) && this.isWalkable(nx + dx, ny - 1))) {
+                    console.log(`在水平移动时，在 (${nx}, ${ny}) 发现强制邻居`);
+                    return [nx, ny];
+                }
+            } else {
+                if ((!this.isWalkable(nx + 1, ny) && this.isWalkable(nx + 1, ny + dy)) ||
+                    (!this.isWalkable(nx - 1, ny) && this.isWalkable(nx - 1, ny + dy))) {
+                    console.log(`在垂直移动时，在 (${nx}, ${ny}) 发现强制邻居`);
+                    return [nx, ny];
+                }
+            }
+        }
+
+        return this.jump(nx, ny, dx, dy, endNode);
+    }
+
+    isWalkable(x, y) {
+        const walkable = x >= 0 && x < this.width && y >= 0 && y < this.height && this.grid[y][x] === 0;
+        console.log(`检查位置 (${x}, ${y}) 是否可行走: ${walkable}`);
+        return walkable;
     }
 
     hasObstacle(start, end) {
@@ -304,7 +292,7 @@ class JPS {
         let err = dx - dy;
 
         while (true) {
-            if (this.grid[x0][y0] === 1) {
+            if (this.grid[y0][x0] === 1) {
                 return true;
             }
             if (x0 === x1 && y0 === y1) break;
@@ -325,14 +313,14 @@ class JPS {
     hasForcedNeighbor(x, y, dx, dy) {
         console.log(`\n检查强制邻居 @(${x},${y}) 方向[${dx},${dy}]`);
         
-        if (this.isBlocked(x, y)) return false;
+        if (this.isWalkable(x, y)) return false;
 
         // 调整对角线移动检测逻辑
         if (dx !== 0 && dy !== 0) {
             // 允许单侧阻挡的情况下继续检测
             const nextX = x + dx;
             const nextY = y + dy;
-            if (this.isBlocked(nextX, y) && this.isBlocked(x, nextY)) {
+            if (this.isWalkable(nextX, y) && this.isWalkable(x, nextY)) {
                 return false; // 仅当两侧都阻挡时返回
             }
         }
@@ -340,22 +328,58 @@ class JPS {
         // 修正方向向量处理
         if (dx === 0) { // 垂直移动
             const moveDir = dy > 0 ? 1 : -1;
-            return (this.isBlocked(x + 1, y) && !this.isBlocked(x + 1, y + moveDir)) || 
-                   (this.isBlocked(x - 1, y) && !this.isBlocked(x - 1, y + moveDir));
+            return (this.isWalkable(x + 1, y) && !this.isWalkable(x + 1, y + moveDir)) || 
+                   (this.isWalkable(x - 1, y) && !this.isWalkable(x - 1, y + moveDir));
         }
         if (dy === 0) { // 水平移动
             const moveDir = dx > 0 ? 1 : -1;
-            return (this.isBlocked(x, y + 1) && !this.isBlocked(x + moveDir, y + 1)) || 
-                   (this.isBlocked(x, y - 1) && !this.isBlocked(x + moveDir, y - 1));
+            return (this.isWalkable(x, y + 1) && !this.isWalkable(x + moveDir, y + 1)) || 
+                   (this.isWalkable(x, y - 1) && !this.isWalkable(x + moveDir, y - 1));
         }
         return false;
-    }
-
-    isBlocked(x, y) {
-        return x < 0 || x >= this.height ||
-            y < 0 || y >= this.width ||
-            this.grid[x][y] === 1;
     }
 }
 
 export { JPS, Node };
+
+if (process.argv[1].includes('JPS.js')) {
+    const testGrid = [
+        [0, 0, 0],
+        [0, 1, 0],
+        [0, 0, 0]
+    ];
+    
+    console.log('测试网格:');
+    testGrid.forEach(row => console.log(row.map(cell => cell === 1 ? '█' : '·').join(' ')));
+    console.log('\n起点: [0, 0]');
+    console.log('终点: [2, 2]\n');
+    
+    const jps = new JPS(testGrid);
+    const startTime = performance.now();
+    const path = jps.findPath([0, 0], [2, 2]);
+    const endTime = performance.now();
+    
+    if (path) {
+        console.log('找到路径!');
+        console.log('路径坐标:', path);
+        
+        // 在网格上显示路径
+        const visualGrid = testGrid.map(row => [...row]);
+        path.forEach(([x, y]) => {
+            visualGrid[y][x] = 2;
+        });
+        
+        console.log('\n路径可视化:');
+        visualGrid.forEach(row => {
+            console.log(row.map(cell => {
+                if (cell === 1) return '█';
+                if (cell === 2) return '○';
+                return '·';
+            }).join(' '));
+        });
+    } else {
+        console.log('未找到路径!');
+    }
+    
+    console.log('\n执行时间:', (endTime - startTime).toFixed(2) + 'ms');
+}

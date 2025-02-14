@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import time
 import numpy as np
 from bidirectional_astar import BidirectionalAStar
+from jps_pathfinding import jps as jps_algorithm
 
 # 地图配置参数
 MAP_CONFIG = {
@@ -39,6 +40,12 @@ def test_pathfinding(grid, start, end):
     path_bi = bi_astar.find_path(start, end)
     bi_astar_time = bi_astar.execution_time
     
+    # 添加JPS测试
+    jps = JPS(grid)
+    start_time = time.time()
+    path_jps = jps.find_path(start, end)
+    jps_time = jps.execution_time
+    
     # 打印结果
     print("\n性能比较结果:")
     print("-" * 50)
@@ -65,15 +72,24 @@ def test_pathfinding(grid, start, end):
         print(f"A*路径长度: {len(path_astar)}")
         print(f"双向A*路径长度: {len(path_bi)}")
     
-    print("\n性能提升:")
+    print("\nJPS算法:")
+    print(f"执行时间: {jps_time:.6f}秒")
+    print(f"探索节点数: {jps.nodes_explored}")
+    if path_jps:
+        print(f"路径长度: {jps.path_length}")
+        print(f"平均跳跃距离: {jps.avg_jump_distance:.2f}")
+    else:
+        print("未找到路径")
+    
+    print("\n性能提升(JPS vs A*):")
     if astar_time > 0:
-        speedup = (astar_time - bi_astar_time) / astar_time * 100
+        speedup = (astar_time - jps_time) / astar_time * 100
         print(f"时间提升: {speedup:.2f}%")
     
-    nodes_reduction = (astar.nodes_explored - bi_astar.nodes_explored) / astar.nodes_explored * 100
+    nodes_reduction = (astar.nodes_explored - jps.nodes_explored) / astar.nodes_explored * 100
     print(f"节点探索减少: {nodes_reduction:.2f}%")
     
-    return path_astar, path_bi
+    return path_astar, path_bi, path_jps
 
 def main():
     # 测试不同大小的地图
@@ -89,7 +105,7 @@ def main():
             start = (0, 0)
             end = (size[0]-1, size[1]-1)
             
-            path_astar, path_bi = test_pathfinding(grid, start, end)
+            path_astar, path_bi, path_jps = test_pathfinding(grid, start, end)
 
     # 更新测试用例
     test_cases = [
@@ -179,8 +195,8 @@ def main():
     bi_astar = BidirectionalAStar(random_grid)
     bi_astar_path = bi_astar.find_path(start, end)
 
-    # 调整可视化布局为2x2
-    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(18,12))
+    # 调整可视化布局为2x3
+    fig, ((ax1, ax2, ax5), (ax3, ax4, ax6)) = plt.subplots(2, 3, figsize=(24,12))
 
     # 可视化所有算法的路径
     visualize(random_grid, spf_path,
@@ -206,6 +222,13 @@ def main():
              stats={'nodes':bi_astar.nodes_explored, 'time':bi_astar.execution_time*1000},
              obstacles=True,
              ax=ax4)
+
+    # 添加JPS可视化
+    visualize(random_grid, jps_path,
+             title=f"JPS 路径 (耗时: {jps.execution_time*1000:.2f}ms)",
+             stats={'nodes':jps.nodes_explored, 'time':jps.execution_time*1000},
+             obstacles=True,
+             ax=ax5)
 
     plt.tight_layout()  # 调整子图布局,防止重叠
     plt.show()
