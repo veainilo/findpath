@@ -338,7 +338,10 @@ class DynamicPathPlanner {
     }
 
     async updatePath() {
+        const start = performance.now();
         const path = await this.findPath(this.robotMarker, this.goal);
+        const end = performance.now();
+        console.log(`路径规划时间: ${end - start} ms`);
         if (path) {
             this.pathLine = path;
             // 更新机器人位置到路径的下一个点
