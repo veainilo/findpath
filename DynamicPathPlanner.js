@@ -30,7 +30,7 @@ class PriorityQueue {
 }
 
 class DynamicPathPlanner {
-    constructor(gridSize = 20, dynamicUpdateInterval = 500) {
+    constructor(gridSize = 50, dynamicUpdateInterval = 500) {
         this.gridSize = gridSize;
         this.dynamicObstacles = new Set();
         this.staticObstacles = new Set();
@@ -76,11 +76,23 @@ class DynamicPathPlanner {
 
     async dynamicObstacleUpdate() {
         while (this.running) {
-            // Simulate dynamic obstacles movement
-            let newObstacles = new Set();
-            for (let obs of this.dynamicObstacles) {
-                if (obs.x < this.gridSize - 1) {
-                    newObstacles.add({ x: obs.x + 1, y: obs.y });
+            const newObstacles = new Set();
+            for (const obs of this.dynamicObstacles) {
+                // 随机移动方向
+                const directions = [
+                    {dx: 1, dy: 0}, {dx: -1, dy: 0},
+                    {dx: 0, dy: 1}, {dx: 0, dy: -1}
+                ];
+                const dir = directions[Math.floor(Math.random() * directions.length)];
+                
+                const newX = obs.x + dir.dx;
+                const newY = obs.y + dir.dy;
+                
+                if (newX >= 0 && newX < this.gridSize && 
+                    newY >= 0 && newY < this.gridSize) {
+                    newObstacles.add({x: newX, y: newY});
+                } else {
+                    newObstacles.add(obs); // 保留无法移动的障碍物
                 }
             }
             this.dynamicObstacles = newObstacles;
@@ -249,15 +261,39 @@ class DynamicPathPlanner {
         }
     }
 
-    async run_dynamic_demo(start = {x: 1, y: 1}, goal = {x: 18, y: 18}) {
-        // 添加示例障碍物
-        this.staticObstacles.add('5,5');
-        this.staticObstacles.add('5,6');
-        this.staticObstacles.add('6,5');
-        this.staticObstacles.add('6,6');
+    async run_dynamic_demo(start = {x: 1, y: 1}, goal = {x: 48, y: 48}) {
+        // 生成随机障碍物
+        const obstacleDensity = 0.3;
+        const totalCells = this.gridSize * this.gridSize;
+        const targetObstacles = Math.floor(totalCells * obstacleDensity);
         
-        this.dynamicObstacles.add({x: 10, y: 10});
-        
+        // 生成随机静态障碍物
+        while (this.staticObstacles.size < targetObstacles) {
+            const x = Math.floor(Math.random() * this.gridSize);
+            const y = Math.floor(Math.random() * this.gridSize);
+            // 避开起点和终点区域
+            if ((x > 3 || y > 3) && (x < this.gridSize-4 || y < this.gridSize-4)) {
+                this.staticObstacles.add(`${x},${y}`);
+            }
+        }
+
+        // 添加动态障碍物集群
+        for (let i = 0; i < 5; i++) { // 添加5个动态障碍物集群
+            const clusterX = Math.floor(Math.random() * (this.gridSize - 10)) + 5;
+            const clusterY = Math.floor(Math.random() * (this.gridSize - 10)) + 5;
+            
+            for (let dx = -2; dx <= 2; dx++) {
+                for (let dy = -2; dy <= 2; dy++) {
+                    if (Math.random() < 0.7) { // 70%概率生成障碍物
+                        this.dynamicObstacles.add({
+                            x: clusterX + dx,
+                            y: clusterY + dy
+                        });
+                    }
+                }
+            }
+        }
+
         this.start = start;
         this.goal = goal;
         this.robotMarker = {...start};
