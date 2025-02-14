@@ -21,16 +21,16 @@ class PriorityQueue {
     constructor() {
         this.elements = [];
     }
-    
+
     enqueue(element, priority) {
-        this.elements.push({element, priority});
+        this.elements.push({ element, priority });
         this.elements.sort((a, b) => a.priority - b.priority);
     }
-    
+
     dequeue() {
         return this.elements.shift().element;
     }
-    
+
     isEmpty() {
         return this.elements.length === 0;
     }
@@ -57,12 +57,15 @@ class JPS {
     }
 
     jump(x, y, dx, dy, goal) {
+        console.log(`\n=== 跳跃检测开始 (${x},${y}) 方向[${dx},${dy}] ===`);
+        
         const cacheKey = `${x},${y},${dx},${dy}`;
         if (this.jumpCache[cacheKey] !== undefined) {
+            console.log(`缓存命中: ${this.jumpCache[cacheKey]}`);
             return this.jumpCache[cacheKey];
         }
         this.jumpCalls += 1;
-        
+
         let nx = x + dx;
         let ny = y + dy;
 
@@ -76,30 +79,42 @@ class JPS {
             return [x, y];
         }
 
+        // 在递归前添加障碍物连锁检测
+        if (this.isBlocked(nx, ny) ||
+            (dx !== 0 && dy !== 0 &&
+                (this.isBlocked(x + dx, y) || this.isBlocked(x, y + dy)))) {
+            this.jumpCache[cacheKey] = null;
+            return null;
+        }
+
         // 检查强制邻居
-        if (this.hasForcedNeighbor(nx, ny, dx, dy)) {
+        const hasForced = this.hasForcedNeighbor(nx, ny, dx, dy);
+        console.log(`强制邻居检查结果: ${hasForced ? '存在' : '无'}`);
+        
+        if (hasForced) {
             this.jumpCache[cacheKey] = [nx, ny];
             return [nx, ny];
         }
 
         // 对角线移动时需要检查水平和垂直方向
         if (dx !== 0 && dy !== 0) {
-            // 修改为同时检查三个方向
+            // 恢复正确的节点检测
             const horizontal = this.jump(nx, ny, dx, 0, goal);
             const vertical = this.jump(nx, ny, 0, dy, goal);
             if (horizontal !== null || vertical !== null) {
                 this.jumpCache[cacheKey] = [nx, ny];
                 return [nx, ny];
             }
-            
-            // 增强对角线强制邻居检测
+
+            // 修正强制邻居检测位置
             const dirs = [
-                [dx, 0],  // 原水平方向
-                [0, dy],  // 原垂直方向
-                [dx, dy]  // 原对角线方向
+                [dx, 0],  // 水平方向
+                [0, dy],  // 垂直方向
+                [dx, dy]  // 对角线方向
             ];
-            
+
             for (const [ndx, ndy] of dirs) {
+                // 修正为检测下一个节点而非当前节点
                 if (this.hasForcedNeighbor(nx, ny, ndx, ndy)) {
                     this.jumpCache[cacheKey] = [nx, ny];
                     return [nx, ny];
@@ -109,6 +124,8 @@ class JPS {
 
         // 继续沿原方向跳跃
         const nextPoint = this.jump(nx, ny, dx, dy, goal);
+        console.log(`递归跳跃结果: ${nextPoint ? `(${nextPoint[0]},${nextPoint[1]})` : '无'}`);
+        
         this.jumpCache[cacheKey] = nextPoint;
         return nextPoint;
     }
@@ -121,8 +138,9 @@ class JPS {
         const openList = new PriorityQueue();
         const startNode = new Node(...start);
         const endNode = new Node(...end);
+        startNode.g = 0;
         startNode.h = this.heuristic(startNode, endNode);
-        startNode.f = startNode.h;
+        startNode.f = startNode.g + startNode.h;
         openList.enqueue(startNode, startNode.f);
 
         const closedDict = {};
@@ -131,10 +149,10 @@ class JPS {
         let iterations = 0;
 
         while (!openList.isEmpty() && iterations < maxIterations) {
-            iterations += 1;
+            console.log(`[迭代 ${iterations}] 开放列表大小: ${openList.elements.length}, 关闭列表大小: ${Object.keys(closedDict).length}`);
+            
             const current = openList.dequeue();
-
-            // console.log(`Evaluating node: (${current.x}, ${current.y})`);
+            console.log(`当前节点: (${current.x},${current.y}) g=${current.g}, h=${current.h}, f=${current.f}`);
 
             if (current.x === endNode.x && current.y === endNode.y) {
                 const path = [];
@@ -154,9 +172,13 @@ class JPS {
             closedDict[`${current.x},${current.y}`] = current;
 
             for (const [dx, dy] of this.movements) {
+                console.log(`检查方向: [${dx},${dy}]`);
+                
                 // 处理直线移动
                 if (dx === 0 || dy === 0) {
                     const jumpPoint = this.jump(current.x, current.y, dx, dy, endNode);
+                    console.log(`直线跳跃结果: ${jumpPoint ? `(${jumpPoint[0]},${jumpPoint[1]})` : '无'}`);
+                    
                     if (jumpPoint) {
                         const nx = jumpPoint[0];
                         const ny = jumpPoint[1];
@@ -171,11 +193,11 @@ class JPS {
                         if (!closedDict[`${nx},${ny}`]) {
                             const dxTotal = nx - current.x;
                             const dyTotal = ny - current.y;
-                            
+
                             const steps = Math.abs(dxTotal) + Math.abs(dyTotal);
                             const isDiagonal = dxTotal !== 0 && dyTotal !== 0;
-                            const cost = isDiagonal ? 14 * Math.min(Math.abs(dxTotal), Math.abs(dyTotal)) + 10 * Math.abs(Math.abs(dxTotal) - Math.abs(dyTotal)) 
-                                               : 10 * steps;
+                            const cost = isDiagonal ? 14 * Math.min(Math.abs(dxTotal), Math.abs(dyTotal)) + 10 * Math.abs(Math.abs(dxTotal) - Math.abs(dyTotal))
+                                : 10 * steps;
 
                             const newG = current.g + cost;
                             if (newG < (gValues[`${nx},${ny}`] || Infinity)) {
@@ -191,11 +213,12 @@ class JPS {
                 }
                 // 处理对角线移动
                 else {
+                    console.log('处理对角线移动...');
                     // 先检查水平方向
                     const horizontalJump = this.jump(current.x, current.y, dx, 0, endNode);
                     // 再检查垂直方向
                     const verticalJump = this.jump(current.x, current.y, 0, dy, endNode);
-                    
+
                     if (horizontalJump || verticalJump) {
                         const jumpPoint = this.jump(current.x, current.y, dx, dy, endNode);
                         if (jumpPoint) {
@@ -212,11 +235,11 @@ class JPS {
                             if (!closedDict[`${nx},${ny}`]) {
                                 const dxTotal = nx - current.x;
                                 const dyTotal = ny - current.y;
-                                
+
                                 const steps = Math.abs(dxTotal) + Math.abs(dyTotal);
                                 const isDiagonal = dxTotal !== 0 && dyTotal !== 0;
-                                const cost = isDiagonal ? 14 * Math.min(Math.abs(dxTotal), Math.abs(dyTotal)) + 10 * Math.abs(Math.abs(dxTotal) - Math.abs(dyTotal)) 
-                                                   : 10 * steps;
+                                const cost = isDiagonal ? 14 * Math.min(Math.abs(dxTotal), Math.abs(dyTotal)) + 10 * Math.abs(Math.abs(dxTotal) - Math.abs(dyTotal))
+                                    : 10 * steps;
 
                                 const newG = current.g + cost;
                                 if (newG < (gValues[`${nx},${ny}`] || Infinity)) {
@@ -233,21 +256,26 @@ class JPS {
                 }
             }
 
-            // 修改直接邻居检测部分
-            if (Math.abs(current.x - endNode.x) <= 1 && 
-                Math.abs(current.y - endNode.y) <= 1) {
-                const finalNode = new Node(endNode.x, endNode.y, current);
+            // 在终点检测处添加详细日志
+            if ((Math.abs(current.x - endNode.x) + Math.abs(current.y - endNode.y)) <= 2) {
+                console.log('进入终点检测范围');
+                const isReachable = this.hasObstacle([current.x, current.y], [endNode.x, endNode.y]);
+                console.log(`终点可达性检查: ${isReachable ? '不可达' : '可达'}`);
                 
-                // 添加路径重建代码
-                const path = [];
-                let temp = finalNode;
-                while (temp) {
-                    path.push([temp.x, temp.y]);
-                    temp = temp.parent;
+                if (!isReachable) {
+                    console.log('构建最终路径:');
+                    let temp = current;
+                    const path = [];
+                    while (temp) {
+                        console.log(`<- (${temp.x},${temp.y})`);
+                        path.unshift([temp.x, temp.y]); // 使用unshift确保正确顺序
+                        temp = temp.parent;
+                    }
+                    // 添加终点到路径
+                    path.push([endNode.x, endNode.y]);
+                    this.pathLength = path.length;
+                    return path;
                 }
-                this.executionTime = performance.now() - startTime;
-                this.pathLength = path.length;
-                return path;
             }
         }
 
@@ -256,8 +284,8 @@ class JPS {
     }
 
     hasObstacle(start, end) {
-        const [x0, y0] = start;
-        const [x1, y1] = end;
+        let [x0, y0] = start;
+        let [x1, y1] = end;
         const dx = Math.abs(x1 - x0);
         const dy = Math.abs(y1 - y0);
         const sx = x0 < x1 ? 1 : -1;
@@ -284,25 +312,32 @@ class JPS {
     }
 
     hasForcedNeighbor(x, y, dx, dy) {
-        // 简化并优化强制邻居判断
-        if (dx === 0) { // 垂直
-            return (this.isBlocked(x+1, y-dy) && !this.isBlocked(x+1, y)) || 
-                   (this.isBlocked(x-1, y-dy) && !this.isBlocked(x-1, y));
-        } 
-        if (dy === 0) { // 水平
-            return (this.isBlocked(x-dx, y+1) && !this.isBlocked(x, y+1)) || 
-                   (this.isBlocked(x-dx, y-1) && !this.isBlocked(x, y-1));
+        console.log(`\n检查强制邻居 @(${x},${y}) 方向[${dx},${dy}]`);
+        
+        if (this.isBlocked(x, y)) return false;
+
+        // 添加A*式的对角线移动障碍检测
+        if (dx !== 0 && dy !== 0) {
+            if (this.isBlocked(x + dx, y) || this.isBlocked(x, y + dy)) {
+                return false;
+            }
         }
-        // 对角线
-        return (this.isBlocked(x-dx, y) || this.isBlocked(x, y-dy)) || 
-               (this.isBlocked(x+dx, y-dy) && !this.isBlocked(x+dx, y)) ||
-               (this.isBlocked(x-dx, y+dy) && !this.isBlocked(x, y+dy));
+        // 保持原有垂直/水平检测
+        if (dx === 0) { // 垂直
+            return (this.isBlocked(x + 1, y - dy) && !this.isBlocked(x + 1, y)) ||
+                (this.isBlocked(x - 1, y - dy) && !this.isBlocked(x - 1, y));
+        }
+        if (dy === 0) { // 水平
+            return (this.isBlocked(x - dx, y + 1) && !this.isBlocked(x, y + 1)) ||
+                (this.isBlocked(x - dx, y - 1) && !this.isBlocked(x, y - 1));
+        }
+        return false;
     }
 
     isBlocked(x, y) {
-        return x < 0 || x >= this.height || 
-               y < 0 || y >= this.width || 
-               this.grid[x][y] === 1;
+        return x < 0 || x >= this.height ||
+            y < 0 || y >= this.width ||
+            this.grid[x][y] === 1;
     }
 }
 
