@@ -150,6 +150,40 @@ class DynamicPathPlanner {
         return null;
     }
 
+    // 射线探测方法（完整实现）
+    _rayCast(start, end) {
+        const dx = Math.abs(end.x - start.x);
+        const dy = Math.abs(end.y - start.y);
+        const sx = start.x < end.x ? 1 : -1;
+        const sy = start.y < end.y ? 1 : -1;
+        let err = dx - dy;
+
+        let current = { x: start.x, y: start.y };
+
+        while (true) {
+            // 检查当前网格是否被阻挡
+            if (this.isBlocked(current.x, current.y)) {
+                return false;
+            }
+
+            // 到达终点
+            if (current.x === end.x && current.y === end.y) {
+                break;
+            }
+
+            const e2 = 2 * err;
+            if (e2 > -dy) {
+                err -= dy;
+                current.x += sx;
+            }
+            if (e2 < dx) {
+                err += dx;
+                current.y += sy;
+            }
+        }
+        return true;
+    }
+
     // 新增辅助方法
     _tracePartialPath(node) {
         const path = [];
@@ -168,15 +202,15 @@ class DynamicPathPlanner {
     getNeighbors(node, goal) {
         // 优先主方向扩展
         const mainDirections = [];
-        if (goal.x > node.pos.x) mainDirections.push({x:1,y:0});
-        if (goal.x < node.pos.x) mainDirections.push({x:-1,y:0});
-        if (goal.y > node.pos.y) mainDirections.push({x:0,y:1});
-        if (goal.y < node.pos.y) mainDirections.push({x:0,y:-1});
-        
+        if (goal.x > node.pos.x) mainDirections.push({ x: 1, y: 0 });
+        if (goal.x < node.pos.x) mainDirections.push({ x: -1, y: 0 });
+        if (goal.y > node.pos.y) mainDirections.push({ x: 0, y: 1 });
+        if (goal.y < node.pos.y) mainDirections.push({ x: 0, y: -1 });
+
         const directions = [
             ...mainDirections, // 主方向优先
-            {x:1,y:1}, {x:1,y:-1}, 
-            {x:-1,y:1}, {x:-1,y:-1}
+            { x: 1, y: 1 }, { x: 1, y: -1 },
+            { x: -1, y: 1 }, { x: -1, y: -1 }
         ];
 
         let currentDirection = null;
@@ -434,40 +468,40 @@ class DynamicPathPlanner {
     async updatePath() {
         const maxCorners = 999;
         let startTime = performance.now();
-        
+
         try {
             // 使用原始findPath方法获取完整路径
             const fullPath = await this.findPath(this.robotMarker, this.goal);
             let endTime = performance.now();
-            
+
             console.log(`路径规划耗时: ${(endTime - startTime).toFixed(2)}ms`);
             console.log(`探索节点数: ${this.nodesExplored}`);
 
             if (fullPath?.length > 0) {
                 this.pathLine = fullPath;
-                
+
                 // 逐步移动机器人
                 for (let step = 1; step < fullPath.length; step++) {
                     if (!this.running) break;
-                    
+
                     // 更新机器人位置
                     this.robotMarker = {
                         x: fullPath[step][0],
                         y: fullPath[step][1]
                     };
-                    
+
                     // 动态障碍物检查
                     if (this._hasObstacleCollision(fullPath.slice(step))) {
                         console.log("检测到路径障碍，重新规划...");
-                        await this.sleep(100);
+                        await this.sleep(200);
                         this.updatePath(); // 重新规划路径
                         return;
                     }
-                    
+
                     this.visualize();
-                    await this.sleep(100); // 控制移动速度
+                    await this.sleep(200); // 控制移动速度
                 }
-                
+
                 // 最终位置校准
                 this.robotMarker = {
                     x: this.goal.x,
@@ -477,7 +511,7 @@ class DynamicPathPlanner {
                 console.warn('路径规划失败');
                 this.pathLine = [];
             }
-            
+
         } catch (error) {
             console.error("路径规划异常:", error);
         } finally {
@@ -486,14 +520,14 @@ class DynamicPathPlanner {
     }
 
     _hasObstacleCollision(pathSegment) {
-        return pathSegment.some(([x, y]) => 
+        return pathSegment.some(([x, y]) =>
             this.isBlocked(x, y)
         );
     }
 
     _isAtGoal(position) {
-        return position.x === this.goal.x && 
-               position.y === this.goal.y;
+        return position.x === this.goal.x &&
+            position.y === this.goal.y;
     }
 
     stopAnimation() {
