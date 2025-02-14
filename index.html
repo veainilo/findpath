@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pathfinding Algorithms Visualization</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        canvas {
+            border: 1px solid #ccc;
+            background-color: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 10px;
+        }
+        .algorithm-section {
+            margin-bottom: 40px;
+            padding: 20px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1, h2 {
+            color: #333;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 10px;
+            border: none;
+            border-radius: 4px;
+            background-color: #4CAF50;
+            color: white;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        pre {
+            background-color: #f8f8f8;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        .controls {
+            margin: 20px 0;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .dynamic-controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .dynamic-controls button {
+            background-color: #2196F3;
+        }
+        .dynamic-controls button:hover {
+            background-color: #1976D2;
+        }
+        .dynamic-controls button.stop {
+            background-color: #f44336;
+        }
+        .dynamic-controls button.stop:hover {
+            background-color: #d32f2f;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>路径规划算法可视化</h1>
+        
+        <div class="controls">
+            <button id="runAlgorithms">运行静态算法对比</button>
+        </div>
+
+        <div class="algorithm-section">
+            <h2>A* 算法结果:</h2>
+            <pre id="resultsAStar"></pre>
+            <canvas id="gridCanvasAStar" width="500" height="500"></canvas>
+        </div>
+
+        <div class="algorithm-section">
+            <h2>双向 A* 算法结果:</h2>
+            <pre id="resultsBiAStar"></pre>
+            <canvas id="gridCanvasBiAStar" width="500" height="500"></canvas>
+        </div>
+
+        <div class="algorithm-section">
+            <h2>JPS 算法结果:</h2>
+            <pre id="resultsJPS"></pre>
+            <canvas id="gridCanvasJPS" width="500" height="500"></canvas>
+        </div>
+
+        <div class="algorithm-section">
+            <h2>动态路径规划器:</h2>
+            <div class="dynamic-controls">
+                <button id="runDynamicPlanner">启动动态规划</button>
+                <button id="stopDynamicPlanner" class="stop">停止</button>
+                <button id="addObstacle">添加障碍物</button>
+                <button id="clearObstacles">清除障碍物</button>
+            </div>
+            <div id="dynamicPlannerContainer"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { AStar } from './AStar.js';
+        import { BidirectionalAStar } from './BidirectionalAStar.js';
+        import { JPS } from './JPS.js';
+        import { DynamicPathPlanner } from './DynamicPathPlanner.js';
+
+        let dynamicPlanner = null;
+
+        document.getElementById('runAlgorithms').addEventListener('click', async () => {
+            const gridSize = 100;
+            const grid = Array.from({ length: gridSize }, () => Array(gridSize).fill(0));
+
+            // Create a guaranteed path from start to end
+            for (let i = 0; i < gridSize; i++) {
+                grid[i][0] = 0; // Left column
+                grid[i][gridSize - 1] = 0; // Right column
+            }
+            for (let j = 0; j < gridSize; j++) {
+                grid[0][j] = 0; // Top row
+                grid[gridSize - 1][j] = 0; // Bottom row
+            }
+
+            // Randomly place obstacles while ensuring a path
+            for (let i = 1; i < gridSize - 1; i++) {
+                for (let j = 1; j < gridSize - 1; j++) {
+                    if (Math.random() < 0.3) { // 30% obstacle density
+                        if (!(i === 0 && j === 0) && !(i === gridSize - 1 && j === gridSize - 1)) {
+                            grid[i][j] = 1; // Place obstacle unless it's start or end
+                        }
+                    }
+                }
+            }
+
+            const start = [0, 0];  
+            const end = [gridSize - 1, gridSize - 1];
+
+            // A* Algorithm
+            const astar = new AStar(grid);
+            const startAStarTime = performance.now();
+            const pathAStar = astar.findPath(start, end);
+            const endAStarTime = performance.now();
+
+            document.getElementById('resultsAStar').innerText = 
+                `路径长度: ${pathAStar ? pathAStar.length : 'N/A'}\n` +
+                `探索节点数: ${astar.nodesExplored}\n` +
+                `执行时间: ${(endAStarTime - startAStarTime).toFixed(2)} ms`;
+            drawGrid(grid, pathAStar, 'gridCanvasAStar');
+
+            // Bidirectional A* Algorithm
+            const biAStar = new BidirectionalAStar(grid);
+            const startBiAStarTime = performance.now();
+            const pathBiAStar = biAStar.findPath(start, end);
+            const endBiAStarTime = performance.now();
+
+            document.getElementById('resultsBiAStar').innerText = 
+                `路径长度: ${pathBiAStar ? pathBiAStar.length : 'N/A'}\n` +
+                `探索节点数: ${biAStar.nodesExplored}\n` +
+                `执行时间: ${(endBiAStarTime - startBiAStarTime).toFixed(2)} ms`;
+            drawGrid(grid, pathBiAStar, 'gridCanvasBiAStar');
+
+            // JPS Algorithm
+            const jps = new JPS(grid);
+            const startJpsTime = performance.now();
+            const pathJps = jps.findPath(start, end);
+            const endJpsTime = performance.now();
+
+            document.getElementById('resultsJPS').innerText = 
+                `路径长度: ${pathJps ? pathJps.length : 'N/A'}\n` +
+                `探索节点数: ${jps.nodesExplored}\n` +
+                `执行时间: ${(endJpsTime - startJpsTime).toFixed(2)} ms`;
+            drawGrid(grid, pathJps, 'gridCanvasJPS');
+
+            // Dynamic Path Planner (Static Test)
+            if (dynamicPlanner) {
+                dynamicPlanner.stopAnimation();
+            }
+            dynamicPlanner = new DynamicPathPlanner(gridSize);
+            
+            // 将网格障碍物转换为动态规划器的格式
+            for (let i = 0; i < gridSize; i++) {
+                for (let j = 0; j < gridSize; j++) {
+                    if (grid[i][j] === 1) {
+                        dynamicPlanner.staticObstacles.add(`${i},${j}`);
+                    }
+                }
+            }
+
+            const startDynamicTime = performance.now();
+            const pathDynamic = await dynamicPlanner.findPath(
+                {x: start[0], y: start[1]}, 
+                {x: end[0], y: end[1]}
+            );
+            const endDynamicTime = performance.now();
+
+            document.getElementById('dynamicPlannerContainer').innerHTML = `
+                <pre id="resultsDynamic">
+路径长度: ${pathDynamic ? pathDynamic.length : 'N/A'}
+探索节点数: ${dynamicPlanner.nodesExplored || 'N/A'}
+执行时间: ${(endDynamicTime - startDynamicTime).toFixed(2)} ms
+                </pre>
+                <canvas id="gridCanvasDynamic" width="500" height="500"></canvas>
+            `;
+
+            // 绘制动态规划器的结果
+            if (pathDynamic) {
+                const dynamicGrid = Array.from({ length: gridSize }, () => Array(gridSize).fill(0));
+                // 添加静态障碍物到网格
+                for (const obs of dynamicPlanner.staticObstacles) {
+                    const [x, y] = obs.split(',').map(Number);
+                    dynamicGrid[x][y] = 1;
+                }
+                drawGrid(dynamicGrid, pathDynamic.map(p => [p[0], p[1]]), 'gridCanvasDynamic');
+            }
+        });
+
+        // 动态路径规划器控制
+        document.getElementById('runDynamicPlanner').addEventListener('click', () => {
+            if (dynamicPlanner) {
+                dynamicPlanner.stopAnimation();
+            }
+            dynamicPlanner = new DynamicPathPlanner();
+            dynamicPlanner.run_dynamic_demo();
+        });
+
+        document.getElementById('stopDynamicPlanner').addEventListener('click', () => {
+            if (dynamicPlanner) {
+                dynamicPlanner.stopAnimation();
+                dynamicPlanner = null;
+            }
+        });
+
+        document.getElementById('addObstacle').addEventListener('click', () => {
+            if (dynamicPlanner) {
+                const x = Math.floor(Math.random() * dynamicPlanner.gridSize);
+                const y = Math.floor(Math.random() * dynamicPlanner.gridSize);
+                dynamicPlanner.dynamicObstacles.add({x, y});
+            }
+        });
+
+        document.getElementById('clearObstacles').addEventListener('click', () => {
+            if (dynamicPlanner) {
+                dynamicPlanner.dynamicObstacles.clear();
+            }
+        });
+
+        function drawGrid(grid, currentPath, canvasId) {
+            const canvas = document.getElementById(canvasId);
+            const ctx = canvas.getContext('2d');
+            const cellSize = canvas.width / grid.length;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 绘制网格
+            ctx.strokeStyle = '#eee';
+            ctx.lineWidth = 0.5;
+            for (let i = 0; i <= grid.length; i++) {
+                ctx.beginPath();
+                ctx.moveTo(i * cellSize, 0);
+                ctx.lineTo(i * cellSize, canvas.height);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(0, i * cellSize);
+                ctx.lineTo(canvas.width, i * cellSize);
+                ctx.stroke();
+            }
+
+            // 绘制障碍物和路径
+            for (let i = 0; i < grid.length; i++) {
+                for (let j = 0; j < grid[i].length; j++) {
+                    if (grid[i][j] === 1) {
+                        ctx.fillStyle = '#666';
+                        ctx.fillRect(j * cellSize, i * cellSize, cellSize, cellSize);
+                    }
+                }
+            }
+
+            // 绘制路径
+            if (currentPath) {
+                ctx.strokeStyle = '#4CAF50';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(currentPath[0][1] * cellSize + cellSize/2, 
+                          currentPath[0][0] * cellSize + cellSize/2);
+                for (let i = 1; i < currentPath.length; i++) {
+                    ctx.lineTo(currentPath[i][1] * cellSize + cellSize/2,
+                              currentPath[i][0] * cellSize + cellSize/2);
+                }
+                ctx.stroke();
+
+                // 绘制路径点
+                for (const [i, j] of currentPath) {
+                    ctx.fillStyle = '#4CAF50';
+                    ctx.beginPath();
+                    ctx.arc(j * cellSize + cellSize/2, i * cellSize + cellSize/2, 
+                           cellSize/4, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                // 特别标记起点和终点
+                ctx.fillStyle = '#2196F3';
+                ctx.beginPath();
+                ctx.arc(currentPath[0][1] * cellSize + cellSize/2,
+                       currentPath[0][0] * cellSize + cellSize/2,
+                       cellSize/3, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#f44336';
+                ctx.beginPath();
+                ctx.arc(currentPath[currentPath.length-1][1] * cellSize + cellSize/2,
+                       currentPath[currentPath.length-1][0] * cellSize + cellSize/2,
+                       cellSize/3, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+    </script>
+</body>
+</html>

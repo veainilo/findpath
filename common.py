@@ -8,64 +8,33 @@ import random
 plt.rcParams['font.sans-serif'] = ['SimHei']  # 简体中文默认字体
 plt.rcParams['axes.unicode_minus'] = False  # 解决负号显示问题
 
-def visualize(grid, path, title, stats, ax=None):
+def visualize(grid, path, title="", stats=None, obstacles=False, ax=None):
     if ax is None:
-        fig, ax = plt.subplots(figsize=(10, 10))
+        fig, ax = plt.subplots()
     
-    # 绘制路径（更醒目的样式）
+    # 绘制障碍物
+    if obstacles:
+        for y in range(len(grid)):
+            for x in range(len(grid[0])):
+                if grid[y][x] == 1:
+                    ax.add_patch(plt.Rectangle((x-0.5, y-0.5), 1, 1, color='black'))
+    
+    # 绘制路径
     if path:
-        ax.plot(
-            [p[1] for p in path], 
-            [p[0] for p in path], 
-            color='#1E90FF',  # 道奇蓝
-            linewidth=2.5,
-            linestyle='-',
-            marker='o',
-            markersize=6,
-            markerfacecolor='white',
-            markeredgewidth=1,
-            label='规划路径',
-            zorder=2
-        )
+        xs, ys = zip(*path)
+        ax.plot(xs, ys, 'r-', linewidth=2)
+        ax.plot(xs[0], ys[0], 'go')  # 起点
+        ax.plot(xs[-1], ys[-1], 'bx')  # 终点
     
-    # 优化统计信息显示
-    textstr = '\n'.join([
-        f"▸ 探索节点: {stats['nodes']}",
-        f"▸ 计算耗时: {stats['time']:.2f} ms",
-        f"▸ 路径长度: {len(path) if path else '无'}"
-    ])
+    ax.set_title(title)
+    ax.set_aspect('equal')
+    ax.grid(True)
     
-    ax.text(
-        0.05, 0.95, 
-        textstr, 
-        transform=ax.transAxes,
-        verticalalignment='top',
-        bbox=dict(
-            boxstyle='round', 
-            facecolor='white', 
-            alpha=0.8,
-            edgecolor='lightgray'
-        ),
-        fontsize=11,
-        linespacing=1.5
-    )
-    
-    # 设置标题样式
-    ax.set_title(
-        title, 
-        fontsize=14, 
-        pad=20, 
-        fontweight='bold',
-        color='#2F4F4F'
-    )
-    
-    # 设置坐标轴范围
-    ax.set_xlim(-0.5, len(grid[0])-0.5)
-    ax.set_ylim(len(grid)-0.5, -0.5)  # 反转Y轴保持矩阵显示
-    
-    # 如果未传入ax则自动显示
-    if ax is None:
-        plt.show()
+    # 显示统计信息
+    if stats:
+        textstr = '\n'.join([f'{k}: {v}' for k, v in stats.items()])
+        ax.text(0.05, 0.95, textstr, transform=ax.transAxes, 
+                verticalalignment='top', bbox=dict(facecolor='white', alpha=0.5))
 
 def generate_random_grid(size, obstacle_prob=0.2):
     """生成保证起点终点连通的随机网格"""
