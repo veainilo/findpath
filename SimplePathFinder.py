@@ -17,42 +17,52 @@ class SimplePathFinder:
         self.max_steps = 500  # 防止无限递归
 
     def find_path(self, start, end):
-        """
-        主路径查找方法
-        :param start: 起始坐标 (x, y)
-        :param end: 终点坐标 (x, y)
-        :return: 路径列表 或 None（无解）
-        """
+        """修改后的主路径查找方法"""
+        self.end = end  # 保存终点用于绕行判断
         path = [start]
         current = start
         self.visited = {start}
+        retry_count = 0  # 添加重试机制
 
         for _ in range(self.max_steps):
             if current == end:
-                return path  # 到达终点
-
-            # 尝试直线通行
-            if self._direct_path_clear(current, end):
-                path.append(end)
                 return path
 
-            # 寻找障碍物碰撞点
+            # 尝试直线通行（增加重试机制）
+            if self._direct_path_clear(current, end):
+                if retry_count < 2:
+                    path.append(end)
+                    return path
+                else:
+                    # 多次重试后需要验证路径
+                    verify_path = path + [end]
+                    if self._verify_full_path(verify_path):
+                        return verify_path
+
+            # 寻找并处理碰撞点（新增障碍物轮廓跟踪）
             collision = self._find_first_collision(current, end)
             if not collision:
-                return path + [end]  # 意外情况，直接返回当前路径
+                return path + [end]
 
-            # 获取绕行点
+            # 获取并选择绕行点
             detour_points = self._find_detour_points(collision, current)
             if not detour_points:
-                return None  # 无路可走
+                # 尝试回溯
+                if len(path) > 1:
+                    current = path[-2]
+                    path = path[:-1]
+                    retry_count += 1
+                    continue
+                else:
+                    return None
 
-            # 选择更接近终点的绕行点
             current = min(detour_points, 
-                         key=lambda p: self._heuristic(p, end))
+                         key=lambda p: (self._heuristic(p, end), len(path)))
             path.append(current)
             self.visited.add(current)
+            retry_count = 0
 
-        return None  # 超过最大步数
+        return None
 
     def _direct_path_clear(self, a, b):
         """检查直线是否可通行（增加端点检查）"""
@@ -69,31 +79,40 @@ class SimplePathFinder:
         return None
 
     def _find_detour_points(self, collision, from_point):
-        """获取障碍物两侧的可通行点"""
+        """改进的绕行点选择策略"""
         cx, cy = collision
         candidates = []
         
-        # 优化方向顺序，优先水平/垂直方向
-        directions = [
-            (0, 1), (1, 0), (0, -1), (-1, 0),  # 优先四方向
-            (-1,-1), (-1,1), (1,-1), (1,1)     # 次要对角线方向
-        ]
+        # 根据行进方向生成优先方向
+        dx_dir = cx - from_point[0]
+        dy_dir = cy - from_point[1]
         
-        # 根据行进方向优化优先级
-        dx = cx - from_point[0]
-        dy = cy - from_point[1]
-        if dx != 0:  # 垂直方向运动优先
-            directions.insert(0, (0, 1 if dy > 0 else -1))
-        if dy != 0:  # 水平方向运动优先
-            directions.insert(1, (1 if dx > 0 else -1, 0))
+        # 生成8个绕行方向（优先与行进方向垂直）
+        directions = []
+        if dx_dir != 0:  # 垂直运动优先左右绕行
+            directions += [(0, 1), (0, -1), (1, 0), (-1, 0)]
+        if dy_dir != 0:  # 水平运动优先上下绕行
+            directions += [(1, 0), (-1, 0), (0, 1), (0, -1)]
         
+        # 添加对角线方向
+        directions += [(1,1), (1,-1), (-1,1), (-1,-1)]
+        
+        # 去重并保持顺序
+        seen = set()
+        directions = [d for d in directions if not (d in seen or seen.add(d))]
+        
+        # 评估每个方向的可行性
         for dx, dy in directions:
             x, y = cx + dx, cy + dy
             if (0 <= x < self.rows and 0 <= y < self.cols and
                 self.grid[x][y] == 0 and (x, y) not in self.visited):
-                candidates.append((x, y))
+                
+                # 检查新位置到终点的视线是否畅通
+                if self._direct_path_clear((x,y), self.end):
+                    candidates.append((x, y))
         
-        return candidates[:2]  # 返回前两个有效点
+        # 优先选择离终点更近的点
+        return sorted(candidates, key=lambda p: self._heuristic(p, self.end))[:2]
 
     def _heuristic(self, a, b):
         """估算两点距离"""
@@ -118,6 +137,13 @@ class SimplePathFinder:
                 y += y_step
                 error -= dx
         return points
+
+    def _verify_full_path(self, path):
+        """完整路径验证"""
+        for i in range(len(path)-1):
+            if not self._direct_path_clear(path[i], path[i+1]):
+                return False
+        return True
 
     # 新增可视化方法
     def plot_path(self, path, title='路径可视化'):
@@ -168,6 +194,19 @@ class SimplePathFinder:
                        c='gold', s=600, marker='*',
                        edgecolor='darkorange', linewidth=2,
                        zorder=5, label='终点')
+        
+        # 添加障碍物边界强调
+        if hasattr(self, 'end'):
+            # 绘制终点方向指示
+            plt.arrow(end[1]+0.5, end[0]+0.5, 
+                     (end[1] - start[1])*0.2, (end[0] - start[0])*0.2,
+                     color='purple', linestyle=':', width=0.05)
+        
+        # 添加绕行点标记
+        if path and len(path) > 2:
+            for i in range(1, len(path)-1):
+                plt.text(path[i][1]+0.5, path[i][0]+0.5, str(i),
+                        fontsize=10, color='darkred', weight='bold')
         
         # 优化中文标注
         plt.title(title, fontsize=16, pad=20, fontweight='bold')
