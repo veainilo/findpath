@@ -10,16 +10,17 @@ class VisibilityGraph:
         self.nodes_explored = 0
         self.execution_time = 0
         self.path_length = 0
-        
+        self.visibility_cache = {}  # 可见性缓存
+
     def get_obstacle_vertices(self):
         """优化后的顶点检测"""
         vertices = []
-        # 扩展检测模式，包含更多邻域情况
+        # 优化检测模式，减少重复
         patterns = [
-            ((-1,0), (0,1)), ((1,0), (0,1)),  # 上下
-            ((0,1), (1,0)), ((0,1), (-1,0)),  # 左右
-            ((-1,0), (0,-1)), ((1,0), (0,-1)),
-            ((0,-1), (1,0)), ((0,-1), (-1,0))
+            ((-1,0), (0,1)),  # 左上
+            ((1,0), (0,1)),   # 左下
+            ((0,1), (1,0)),   # 右下
+            ((0,-1), (-1,0))  # 右上
         ]
         
         for i in range(self.height):
@@ -41,21 +42,27 @@ class VisibilityGraph:
     
     def is_visible(self, start, end):
         """改进的可见性检查"""
+        cache_key = (start, end)
+        if cache_key in self.visibility_cache:
+            return self.visibility_cache[cache_key]
+        
         x0, y0 = start
         x1, y1 = end
         
-        # 允许起点/终点在障碍物边缘（实际坐标合法即可）
         if not (0 <= x0 < self.height and 0 <= y0 < self.width) or \
            not (0 <= x1 < self.height and 0 <= y1 < self.width):
+            self.visibility_cache[cache_key] = False
             return False
         
         line_points = self.bresenham_line(x0, y0, x1, y1)
         for (x, y) in line_points:
-            # 只检查路径中间点，不检查起点终点本身
             if (x, y) == start or (x, y) == end:
                 continue
             if self.grid[x][y] == 1:
+                self.visibility_cache[cache_key] = False
                 return False
+                
+        self.visibility_cache[cache_key] = True
         return True
     
     def bresenham_line(self, x0, y0, x1, y1):
@@ -96,66 +103,73 @@ class VisibilityGraph:
                     dist = ((v1[0]-v2[0])**2 + (v1[1]-v2[1])**2)**0.5
                     graph[v1][v2] = dist
                     graph[v2][v1] = dist
-                    edge_count +=1
-                
+                    edge_count += 1
+                    
         print(f"可见图边数量: {edge_count}")
         return graph
     
     def find_path(self, start, end):
-        """使用Dijkstra算法在可见图中找最短路径"""
+        """使用A*算法在可见图中找最短路径"""
+        print(f"起点有效性: {self.is_valid_empty(start)}")
+        print(f"终点有效性: {self.is_valid_empty(end)}")
         start_time = time.time()
         self.nodes_explored = 0
+        self.visibility_cache = {}  # 清空缓存
         
         # 构建可见图
         graph = self.build_visibility_graph(start, end)
         
-        # Dijkstra算法
-        distances = {vertex: float('infinity') for vertex in graph}
-        distances[start] = 0
-        pq = [(0, start)]
-        previous = {vertex: None for vertex in graph}
+        print("开始路径寻找...")
+        print("构建的可见图:", graph)
         
-        while pq:
+        # A*算法
+        g_score = {vertex: float('infinity') for vertex in graph}
+        g_score[start] = 0
+        f_score = {vertex: float('infinity') for vertex in graph}
+        f_score[start] = self.heuristic(start, end)
+        
+        open_set = [(f_score[start], start)]
+        came_from = {}
+        
+        while open_set:
             self.nodes_explored += 1
-            current_distance, current_vertex = heappop(pq)
+            current = heappop(open_set)[1]
             
-            if current_vertex == end:
-                break
-                
-            if current_distance > distances[current_vertex]:
-                continue
+            if current == end:
+                path = self.reconstruct_path(came_from, end)
+                self.execution_time = time.time() - start_time
+                self.path_length = len(path)
+                return path
             
-            for neighbor, weight in graph[current_vertex].items():
-                distance = current_distance + weight
+            for neighbor, cost in graph[current].items():
+                tentative_g_score = g_score[current] + cost
                 
-                if distance < distances[neighbor]:
-                    distances[neighbor] = distance
-                    previous[neighbor] = current_vertex
-                    heappush(pq, (distance, neighbor))
-        
-        # 重建路径
-        path = []
-        current_vertex = end
-        while current_vertex is not None:
-            path.append(current_vertex)
-            current_vertex = previous[current_vertex]
-        path.reverse()
+                if tentative_g_score < g_score[neighbor]:
+                    came_from[neighbor] = current
+                    g_score[neighbor] = tentative_g_score
+                    f_score[neighbor] = g_score[neighbor] + self.heuristic(neighbor, end)
+                    heappush(open_set, (f_score[neighbor], neighbor))
         
         self.execution_time = time.time() - start_time
-        if path and path[0] == start and path[-1] == end:
-            self.path_length = len(path)
-            return path
-        return None 
+        return None
 
-    # 临时调试代码：打印顶点数量和示例
-    def debug_print(self):
-        vertices = self.get_obstacle_vertices()
-        print(f"检测到障碍物顶点数量: {len(vertices)}")
-        print("示例顶点:", vertices[:5])
+    def heuristic(self, a, b):
+        """启发式函数：欧几里得距离"""
+        return 1.1 * ((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2) ** 0.5
 
-    # 在find_path方法中添加路径重建的调试
-    def debug_print_path(self, path):
-        if path:
-            print("找到路径:", path)
-        else:
-            print("未找到路径，可见图边数量:", sum(len(v) for v in graph.values())) 
+    def reconstruct_path(self, came_from, current):
+        """重建路径"""
+        path = [current]
+        while current in came_from:
+            current = came_from[current]
+            path.append(current)
+        return path[::-1]
+    
+    def get_stats(self):
+        """获取算法统计信息"""
+        return {
+            'nodes_explored': self.nodes_explored,
+            'execution_time': self.execution_time,
+            'path_length': self.path_length,
+            'cache_hits': len(self.visibility_cache) - sum(self.visibility_cache.values())
+        }

@@ -3,90 +3,78 @@ from visibility_graph import VisibilityGraph
 from common import visualize
 import matplotlib.pyplot as plt
 
-def create_test_map():
-    # 创建一个20x20的网格
-    grid = np.zeros((20, 20), dtype=int)
+def create_test_map(size=(20, 20), obstacles=None):
+    # 创建一个可变大小的网格
+    grid = np.zeros(size, dtype=int)
     
-    # 添加一些障碍物
-    # 添加一个L形障碍物
-    for i in range(8, 12):
-        grid[i][10] = 1  # 垂直线
-    for j in range(10, 15):
-        grid[11][j] = 1  # 水平线
-        
-    # 添加一个小方块障碍物
-    for i in range(5, 7):
-        for j in range(5, 7):
-            grid[i][j] = 1
-            
+    # 添加障碍物
+    if obstacles:
+        for obs in obstacles:
+            x, y, w, h = obs
+            grid[x:x+w, y:y+h] = 1  # 将障碍物区域设置为1
+
     return grid.tolist()
 
 def test_obstacle_avoidance():
-    # 创建测试地图
-    grid = create_test_map()
+    # 创建不同测试地图的障碍物配置
+    obstacles = [
+        # 核心阻挡：对角线上的连续障碍墙
+        (15, 15, 10, 10),  # 中心大型方块完全阻挡直线
+        # 辅助障碍形成必须绕行的通道
+        (5, 20, 30, 2),    # 横向障碍墙
+        (20, 5, 2, 30),    # 纵向障碍墙
+        # 迷宫式障碍
+        (10, 10, 5, 2),
+        (25, 25, 2, 5),
+        (30, 5, 5, 2),
+        (5, 30, 2, 5)
+    ]
     
-    # 设置起点和终点
-    start = (5, 15)
-    end = (15, 5)
-    
+    # 创建更大的50x50地图
+    grid = create_test_map(size=(50, 50), obstacles=obstacles)
+
+    # 调整起点和终点到对角线两端
+    start = (5, 45)  # 左下角附近
+    end = (45, 5)    # 右上角附近
+
     # 使用可见图算法进行路径规划
     vis_graph = VisibilityGraph(grid)
     path = vis_graph.find_path(start, end)
+
+    # 打印找到的路径
+    print(f"找到的路径: {path}")
+
+    # 获取算法统计信息
+    stats = vis_graph.get_stats()
+    print("\n算法统计信息:")
+    print(f"探索的节点数: {stats['nodes_explored']}")
+    print(f"执行时间: {stats['execution_time']:.4f} 秒")
+    print(f"路径长度: {stats['path_length']}")
+
+    # 可视化地图和路径
+    plt.figure(figsize=(10, 10))
+    plt.imshow(grid, cmap='binary')
     
-    # 优化后的可视化部分
-    plt.figure(figsize=(10, 10), dpi=100)
-    ax = plt.gca()
-    
-    # 绘制障碍物（更醒目的样式）
+    # 绘制障碍物
     for i in range(len(grid)):
         for j in range(len(grid[0])):
             if grid[i][j] == 1:
-                ax.add_patch(plt.Rectangle(
-                    (j-0.5, i-0.5), 1, 1, 
-                    color='#2F4F4F',  # 深石板灰
-                    ec='#696969',     # 暗灰色边框
-                    lw=0.5,
-                    alpha=0.7
-                ))
+                plt.plot(j, i, 'rs')  # 红色方块表示障碍物
     
-    # 绘制顶点标记（更清晰的样式）
-    obstacle_vertices = vis_graph.get_obstacle_vertices()
-    ax.scatter(
-        [v[1] for v in obstacle_vertices], 
-        [v[0] for v in obstacle_vertices], 
-        c='#FF4500',    # 橙红色
-        s=50, 
-        marker='D',     # 菱形标记
-        edgecolor='k',
-        label='障碍物顶点',
-        zorder=3        # 确保在最上层
-    )
+    # 绘制起点和终点
+    plt.plot(start[1], start[0], 'go', markersize=15, label='起点')  # 绿色圆形表示起点
+    plt.plot(end[1], end[0], 'ro', markersize=15, label='终点')      # 红色圆形表示终点
     
-    # 调用可视化函数
-    stats = {
-        'nodes': vis_graph.nodes_explored,
-        'time': vis_graph.execution_time * 1000,
-    }
-    visualize(grid, path, "绕障路径可视化", stats, ax=ax)
+    # 如果找到路径，绘制路径
+    if path:
+        path_x = [p[1] for p in path]
+        path_y = [p[0] for p in path]
+        plt.plot(path_x, path_y, 'b-', linewidth=2, label='路径')
     
-    # 添加图例和坐标标签
-    ax.legend(
-        loc='upper right',
-        fontsize=10,
-        framealpha=0.9,
-        edgecolor='w'
-    )
-    ax.set_xlabel('X 坐标', fontsize=12)
-    ax.set_ylabel('Y 坐标', fontsize=12)
-    
-    # 设置网格样式
-    ax.grid(True, color='lightgray', linestyle='--', linewidth=0.5)
-    ax.set_xticks(range(0, 20, 1))
-    ax.set_yticks(range(0, 20, 1))
-    ax.tick_params(axis='both', which='both', length=0)  # 隐藏刻度线
-    
-    plt.tight_layout()
+    plt.grid(True)
+    plt.legend()
+    plt.title('路径规划结果可视化')
     plt.show()
 
 if __name__ == "__main__":
-    test_obstacle_avoidance() 
+    test_obstacle_avoidance()
