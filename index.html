@@ -124,22 +124,52 @@
             const gridSize = 100;
             const grid = Array.from({ length: gridSize }, () => Array(gridSize).fill(0));
 
-            // Create a guaranteed path from start to end
-            for (let i = 0; i < gridSize; i++) {
-                grid[i][0] = 0; // Left column
-                grid[i][gridSize - 1] = 0; // Right column
-            }
-            for (let j = 0; j < gridSize; j++) {
-                grid[0][j] = 0; // Top row
-                grid[gridSize - 1][j] = 0; // Bottom row
+            // 创建稀疏的大障碍物（5x5）
+            const obstacleProbability = 0.05; // 降低生成概率
+            const obstacleSize = 5; // 障碍物尺寸
+            
+            for (let i = 1; i < gridSize - 1; i += obstacleSize + 2) { // 间隔生成
+                for (let j = 1; j < gridSize - 1; j += obstacleSize + 2) {
+                    if (Math.random() < obstacleProbability) {
+                        // 生成5x5障碍物
+                        for (let dx = 0; dx < obstacleSize; dx++) {
+                            for (let dy = 0; dy < obstacleSize; dy++) {
+                                const x = i + dx;
+                                const y = j + dy;
+                                // 确保不超出边界且不在起点/终点附近
+                                if (x < gridSize - 1 && y < gridSize - 1 
+                                    && !(x <= 5 && y <= 5) 
+                                    && !(x >= gridSize - 6 && y >= gridSize - 6)) {
+                                    grid[x][y] = 1;
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
-            // Randomly place obstacles while ensuring a path
-            for (let i = 1; i < gridSize - 1; i++) {
-                for (let j = 1; j < gridSize - 1; j++) {
-                    if (Math.random() < 0.3) { // 30% obstacle density
-                        if (!(i === 0 && j === 0) && !(i === gridSize - 1 && j === gridSize - 1)) {
-                            grid[i][j] = 1; // Place obstacle unless it's start or end
+            // 在对角线附近生成障碍物
+            const diagonalObstacleProb = 0.3; // 对角线区域障碍物概率
+            const diagonalWidth = 2; // 对角线两侧的宽度范围
+            
+            for (let i = 1; i < gridSize - 1; i += obstacleSize + 2) {
+                for (let j = 1; j < gridSize - 1; j += obstacleSize + 2) {
+                    // 判断是否在对角线区域（x ≈ y）
+                    const isNearDiagonal = Math.abs(i - j) <= diagonalWidth;
+                    
+                    if (isNearDiagonal && Math.random() < diagonalObstacleProb) {
+                        // 生成3x3的障碍物（比普通障碍物小）
+                        for (let dx = 0; dx < 3; dx++) {
+                            for (let dy = 0; dy < 3; dy++) {
+                                const x = i + dx;
+                                const y = j + dy;
+                                // 避开起点和终点区域
+                                if (x < gridSize - 3 && y < gridSize - 3 
+                                    && !(x <= 5 && y <= 5) 
+                                    && !(x >= gridSize - 6 && y >= gridSize - 6)) {
+                                    grid[x][y] = 1;
+                                }
+                            }
                         }
                     }
                 }
@@ -153,11 +183,16 @@
             const startAStarTime = performance.now();
             const pathAStar = astar.findPath(start, end);
             const endAStarTime = performance.now();
-
+            const aStarTime = (endAStarTime - startAStarTime).toFixed(2);
+            console.log(`A* 算法执行时间: ${aStarTime} ms`);
+            // 添加分析
+            const aStarAnalysis = `A* 算法分析: ${astar.nodesExplored} 个节点被探索，路径长度为 ${pathAStar ? pathAStar.length : 'N/A'}`;
+            console.log(aStarAnalysis);
             document.getElementById('resultsAStar').innerText = 
                 `路径长度: ${pathAStar ? pathAStar.length : 'N/A'}\n` +
                 `探索节点数: ${astar.nodesExplored}\n` +
-                `执行时间: ${(endAStarTime - startAStarTime).toFixed(2)} ms`;
+                `执行时间: ${aStarTime} ms\n` +
+                aStarAnalysis;
             drawGrid(grid, pathAStar, 'gridCanvasAStar');
 
             // Bidirectional A* Algorithm
@@ -165,11 +200,16 @@
             const startBiAStarTime = performance.now();
             const pathBiAStar = biAStar.findPath(start, end);
             const endBiAStarTime = performance.now();
-
+            const biAStarTime = (endBiAStarTime - startBiAStarTime).toFixed(2);
+            console.log(`双向 A* 算法执行时间: ${biAStarTime} ms`);
+            // 添加分析
+            const biAStarAnalysis = `双向 A* 算法分析: ${biAStar.nodesExplored} 个节点被探索，路径长度为 ${pathBiAStar ? pathBiAStar.length : 'N/A'}`;
+            console.log(biAStarAnalysis);
             document.getElementById('resultsBiAStar').innerText = 
                 `路径长度: ${pathBiAStar ? pathBiAStar.length : 'N/A'}\n` +
                 `探索节点数: ${biAStar.nodesExplored}\n` +
-                `执行时间: ${(endBiAStarTime - startBiAStarTime).toFixed(2)} ms`;
+                `执行时间: ${biAStarTime} ms\n` +
+                biAStarAnalysis;
             drawGrid(grid, pathBiAStar, 'gridCanvasBiAStar');
 
             // JPS Algorithm
@@ -177,11 +217,16 @@
             const startJpsTime = performance.now();
             const pathJps = jps.findPath(start, end);
             const endJpsTime = performance.now();
-
+            const jpsTime = (endJpsTime - startJpsTime).toFixed(2);
+            console.log(`JPS 算法执行时间: ${jpsTime} ms`);
+            // 添加分析
+            const jpsAnalysis = `JPS 算法分析: ${jps.nodesExplored} 个节点被探索，路径长度为 ${pathJps ? pathJps.length : 'N/A'}`;
+            console.log(jpsAnalysis);
             document.getElementById('resultsJPS').innerText = 
                 `路径长度: ${pathJps ? pathJps.length : 'N/A'}\n` +
                 `探索节点数: ${jps.nodesExplored}\n` +
-                `执行时间: ${(endJpsTime - startJpsTime).toFixed(2)} ms`;
+                `执行时间: ${jpsTime} ms\n` +
+                jpsAnalysis;
             drawGrid(grid, pathJps, 'gridCanvasJPS');
 
             // Dynamic Path Planner (Static Test)
@@ -205,12 +250,17 @@
                 {x: end[0], y: end[1]}
             );
             const endDynamicTime = performance.now();
+            const dynamicTime = (endDynamicTime - startDynamicTime).toFixed(2);
+            console.log(`动态规划器执行时间: ${dynamicTime} ms`);
+            const dynamicAnalysis = `动态规划器分析: ${dynamicPlanner.nodesExplored} 个节点被探索，路径长度为 ${pathDynamic ? pathDynamic.length : 'N/A'}`;
+            console.log(dynamicAnalysis);
 
             document.getElementById('dynamicPlannerContainer').innerHTML = `
                 <pre id="resultsDynamic">
 路径长度: ${pathDynamic ? pathDynamic.length : 'N/A'}
 探索节点数: ${dynamicPlanner.nodesExplored || 'N/A'}
 执行时间: ${(endDynamicTime - startDynamicTime).toFixed(2)} ms
+${dynamicAnalysis}
                 </pre>
                 <canvas id="gridCanvasDynamic" width="500" height="500"></canvas>
             `;

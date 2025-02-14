@@ -37,6 +37,7 @@ class DynamicPathPlanner {
         this.pathCache = {};
         this.updateInterval = dynamicUpdateInterval;
         this.running = false;
+        this.nodesExplored = 0; // 添加节点计数器
 
         // Initialize visualization on canvas
         this.canvas = document.createElement('canvas');
@@ -66,21 +67,11 @@ class DynamicPathPlanner {
         }
     }
 
-    heuristic(a, b, currentDirection = null) {
+    heuristic(a, b) {
+        // 使用对角线距离替代曼哈顿距离
         const dx = Math.abs(a.x - b.x);
         const dy = Math.abs(a.y - b.y);
-        const distance = Math.sqrt(dx ** 2 + dy ** 2);
-        
-        if (currentDirection) {
-            const newDirection = { x: b.x - a.x, y: b.y - a.y };
-            const dirMagnitude = Math.hypot(newDirection.x, newDirection.y);
-            const currentMagnitude = Math.hypot(currentDirection.x, currentDirection.y);
-            
-            const dotProduct = currentDirection.x * newDirection.x + currentDirection.y * newDirection.y;
-            const dirChange = 1 - Math.abs(dotProduct) / (currentMagnitude * dirMagnitude + 1e-5);
-            return distance + 0.3 * dirChange;
-        }
-        return distance;
+        return (dx + dy) + (Math.sqrt(2) - 2) * Math.min(dx, dy);
     }
 
     async dynamicObstacleUpdate() {
@@ -102,6 +93,7 @@ class DynamicPathPlanner {
     }
 
     async findPath(start, goal) {
+        this.nodesExplored = 0; // 重置计数器
         const openSet = new PriorityQueue((a, b) => a.f - b.f);
         const closedSet = new Set();
 
@@ -112,6 +104,7 @@ class DynamicPathPlanner {
 
         while (!openSet.isEmpty()) {
             const currentNode = openSet.dequeue();
+            this.nodesExplored++; // 计数探索的节点
 
             if (currentNode.pos.x === goal.x && currentNode.pos.y === goal.y) {
                 const path = [];
