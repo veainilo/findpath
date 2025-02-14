@@ -79,12 +79,23 @@ class JPS {
             return [x, y];
         }
 
-        // 在递归前添加障碍物连锁检测
-        if (this.isBlocked(nx, ny) ||
-            (dx !== 0 && dy !== 0 &&
-                (this.isBlocked(x + dx, y) || this.isBlocked(x, y + dy)))) {
+        // 调整递归终止条件
+        if (this.isBlocked(nx, ny)) {
             this.jumpCache[cacheKey] = null;
             return null;
+        }
+
+        // 添加对角线移动的可行路径检测
+        if (dx !== 0 && dy !== 0) {
+            if (this.isBlocked(x + dx, y) || this.isBlocked(x, y + dy)) {
+                // 允许单侧阻挡时继续检测
+                const horizontal = this.jump(nx, ny, dx, 0, goal);
+                const vertical = this.jump(nx, ny, 0, dy, goal);
+                if (horizontal || vertical) {
+                    this.jumpCache[cacheKey] = [nx, ny];
+                    return [nx, ny];
+                }
+            }
         }
 
         // 检查强制邻居
@@ -316,20 +327,26 @@ class JPS {
         
         if (this.isBlocked(x, y)) return false;
 
-        // 添加A*式的对角线移动障碍检测
+        // 调整对角线移动检测逻辑
         if (dx !== 0 && dy !== 0) {
-            if (this.isBlocked(x + dx, y) || this.isBlocked(x, y + dy)) {
-                return false;
+            // 允许单侧阻挡的情况下继续检测
+            const nextX = x + dx;
+            const nextY = y + dy;
+            if (this.isBlocked(nextX, y) && this.isBlocked(x, nextY)) {
+                return false; // 仅当两侧都阻挡时返回
             }
         }
-        // 保持原有垂直/水平检测
-        if (dx === 0) { // 垂直
-            return (this.isBlocked(x + 1, y - dy) && !this.isBlocked(x + 1, y)) ||
-                (this.isBlocked(x - 1, y - dy) && !this.isBlocked(x - 1, y));
+
+        // 修正方向向量处理
+        if (dx === 0) { // 垂直移动
+            const moveDir = dy > 0 ? 1 : -1;
+            return (this.isBlocked(x + 1, y) && !this.isBlocked(x + 1, y + moveDir)) || 
+                   (this.isBlocked(x - 1, y) && !this.isBlocked(x - 1, y + moveDir));
         }
-        if (dy === 0) { // 水平
-            return (this.isBlocked(x - dx, y + 1) && !this.isBlocked(x, y + 1)) ||
-                (this.isBlocked(x - dx, y - 1) && !this.isBlocked(x, y - 1));
+        if (dy === 0) { // 水平移动
+            const moveDir = dx > 0 ? 1 : -1;
+            return (this.isBlocked(x, y + 1) && !this.isBlocked(x + moveDir, y + 1)) || 
+                   (this.isBlocked(x, y - 1) && !this.isBlocked(x + moveDir, y - 1));
         }
         return false;
     }
