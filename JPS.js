@@ -13,6 +13,25 @@ class Node {
     }
 }
 
+class PriorityQueue {
+    constructor() {
+        this.elements = [];
+    }
+    
+    enqueue(element, priority) {
+        this.elements.push({element, priority});
+        this.elements.sort((a, b) => a.priority - b.priority);
+    }
+    
+    dequeue() {
+        return this.elements.shift().element;
+    }
+    
+    isEmpty() {
+        return this.elements.length === 0;
+    }
+}
+
 class JPS {
     constructor(grid) {
         this.grid = grid;
@@ -30,12 +49,12 @@ class JPS {
     heuristic(node, goal) {
         const dx = Math.abs(node.x - goal.x);
         const dy = Math.abs(node.y - goal.y);
-        return 10 * (dx + dy) + (14 - 20) * Math.min(dx, dy);
+        return 10 * (dx + dy) - 6 * Math.min(dx, dy);
     }
 
     jump(x, y, dx, dy, goal) {
         const cacheKey = `${x},${y},${dx},${dy}`;
-        if (this.jumpCache[cacheKey]) {
+        if (this.jumpCache[cacheKey] !== undefined) {
             return this.jumpCache[cacheKey];
         }
         this.jumpCalls += 1;
@@ -61,8 +80,16 @@ class JPS {
 
         // 对角线移动时需要检查水平和垂直方向
         if (dx !== 0 && dy !== 0) {
-            if (this.jump(nx, ny, dx, 0, goal) || this.jump(nx, ny, 0, dy, goal)) {
+            // 同时检查两个正交方向
+            if (this.jump(nx, ny, dx, 0, goal) !== null || 
+                this.jump(nx, ny, 0, dy, goal) !== null) {
                 this.jumpCache[cacheKey] = [nx, ny];
+                return [nx, ny];
+            }
+            
+            // 添加斜向强制邻居检查
+            if ((this.isBlocked(nx - dx, ny) && !this.isBlocked(nx - dx, ny + dy)) ||
+                (this.isBlocked(nx, ny - dy) && !this.isBlocked(nx + dx, ny - dy))) {
                 return [nx, ny];
             }
         }
@@ -78,21 +105,21 @@ class JPS {
         this.nodesExplored = 0;
         this.jumpCalls = 0;
 
-        const openList = [];
+        const openList = new PriorityQueue();
         const startNode = new Node(...start);
         const endNode = new Node(...end);
         startNode.h = this.heuristic(startNode, endNode);
         startNode.f = startNode.h;
-        openList.push(startNode);
+        openList.enqueue(startNode, startNode.f);
 
         const closedDict = {};
         const gValues = { [`${start[0]},${start[1]}`]: 0 };
         const maxIterations = Math.min(this.height * this.width / 2, 10000);
         let iterations = 0;
 
-        while (openList.length > 0 && iterations < maxIterations) {
+        while (!openList.isEmpty() && iterations < maxIterations) {
             iterations += 1;
-            const current = openList.sort((a, b) => a.compareTo(b)).shift();
+            const current = openList.dequeue();
 
             // console.log(`Evaluating node: (${current.x}, ${current.y})`);
 
@@ -131,8 +158,11 @@ class JPS {
                         if (!closedDict[`${nx},${ny}`]) {
                             const dxTotal = nx - current.x;
                             const dyTotal = ny - current.y;
-
-                            const cost = (dxTotal !== 0 && dyTotal !== 0) ? (14 * Math.min(Math.abs(dxTotal), Math.abs(dyTotal)) + 10 * Math.abs(dxTotal + dyTotal)) : (10 * (Math.abs(dxTotal) + Math.abs(dyTotal)));
+                            
+                            const steps = Math.abs(dxTotal) + Math.abs(dyTotal);
+                            const isDiagonal = dxTotal !== 0 && dyTotal !== 0;
+                            const cost = isDiagonal ? 14 * Math.min(Math.abs(dxTotal), Math.abs(dyTotal)) + 10 * Math.abs(Math.abs(dxTotal) - Math.abs(dyTotal)) 
+                                               : 10 * steps;
 
                             const newG = current.g + cost;
                             if (newG < (gValues[`${nx},${ny}`] || Infinity)) {
@@ -141,7 +171,7 @@ class JPS {
                                 newNode.h = this.heuristic(newNode, endNode);
                                 newNode.f = newNode.g + newNode.h;
                                 gValues[`${nx},${ny}`] = newG;
-                                openList.push(newNode);
+                                openList.enqueue(newNode, newNode.f);
                             }
                         }
                     }
@@ -169,8 +199,11 @@ class JPS {
                             if (!closedDict[`${nx},${ny}`]) {
                                 const dxTotal = nx - current.x;
                                 const dyTotal = ny - current.y;
-
-                                const cost = (dxTotal !== 0 && dyTotal !== 0) ? (14 * Math.min(Math.abs(dxTotal), Math.abs(dyTotal)) + 10 * Math.abs(dxTotal + dyTotal)) : (10 * (Math.abs(dxTotal) + Math.abs(dyTotal)));
+                                
+                                const steps = Math.abs(dxTotal) + Math.abs(dyTotal);
+                                const isDiagonal = dxTotal !== 0 && dyTotal !== 0;
+                                const cost = isDiagonal ? 14 * Math.min(Math.abs(dxTotal), Math.abs(dyTotal)) + 10 * Math.abs(Math.abs(dxTotal) - Math.abs(dyTotal)) 
+                                                   : 10 * steps;
 
                                 const newG = current.g + cost;
                                 if (newG < (gValues[`${nx},${ny}`] || Infinity)) {
@@ -179,7 +212,7 @@ class JPS {
                                     newNode.h = this.heuristic(newNode, endNode);
                                     newNode.f = newNode.g + newNode.h;
                                     gValues[`${nx},${ny}`] = newG;
-                                    openList.push(newNode);
+                                    openList.enqueue(newNode, newNode.f);
                                 }
                             }
                         }
@@ -221,17 +254,19 @@ class JPS {
     }
 
     hasForcedNeighbor(x, y, dx, dy) {
-        if (dx === 0) { // 垂直移动
-            return (this.isBlocked(x + 1, y - dy) && !this.isBlocked(x + 1, y)) || 
-                   (this.isBlocked(x - 1, y - dy) && !this.isBlocked(x - 1, y));
-        } else if (dy === 0) { // 水平移动
-            return (this.isBlocked(x - dx, y + 1) && !this.isBlocked(x, y + 1)) || 
-                   (this.isBlocked(x - dx, y - 1) && !this.isBlocked(x, y - 1));
-        } else { // 对角线移动
-            return (this.isBlocked(x - dx, y) || this.isBlocked(x, y - dy)) || 
-                   (this.isBlocked(x + dx, y - dy) && !this.isBlocked(x + dx, y)) || 
-                   (this.isBlocked(x - dx, y + dy) && !this.isBlocked(x, y + dy));
+        // 简化并优化强制邻居判断
+        if (dx === 0) { // 垂直
+            return (this.isBlocked(x+1, y-dy) && !this.isBlocked(x+1, y)) || 
+                   (this.isBlocked(x-1, y-dy) && !this.isBlocked(x-1, y));
+        } 
+        if (dy === 0) { // 水平
+            return (this.isBlocked(x-dx, y+1) && !this.isBlocked(x, y+1)) || 
+                   (this.isBlocked(x-dx, y-1) && !this.isBlocked(x, y-1));
         }
+        // 对角线
+        return (this.isBlocked(x-dx, y) || this.isBlocked(x, y-dy)) || 
+               (this.isBlocked(x+dx, y-dy) && !this.isBlocked(x+dx, y)) ||
+               (this.isBlocked(x-dx, y+dy) && !this.isBlocked(x, y+dy));
     }
 
     isBlocked(x, y) {
