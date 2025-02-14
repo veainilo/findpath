@@ -104,8 +104,135 @@ class RRTPathPlanner {
         return path;
     }
 
-    // 其他必要方法（isPathClear, calculateDistance等）保持与之前实现一致
-    // 可视化方法也保持独立
+    // 路径碰撞检测
+    isPathClear(start, end) {
+        // 使用Bresenham算法进行直线路径检查
+        const points = this.getLinePoints(start, end);
+        return points.every(point =>
+            !this.staticObstacles.has(`${Math.round(point.x)},${Math.round(point.y)}`) &&
+            !this.dynamicObstacles.has(`${Math.round(point.x)},${Math.round(point.y)}`)
+        );
+    }
+
+    // 计算两点间距离
+    calculateDistance(a, b) {
+        return Math.hypot(a.x - b.x, a.y - b.y);
+    }
+
+    // 路径优化（直线化）
+    optimizePath(originalPath) {
+        const optimized = [originalPath[0]];
+        let lastValid = 0;
+
+        while (lastValid < optimized.length - 1) {
+            let furthestValid = lastValid + 1;
+            for (let i = originalPath.length - 1; i > furthestValid; i--) {
+                const start = { x: optimized[lastValid][0], y: optimized[lastValid][1] };
+                const end = { x: originalPath[i][0], y: originalPath[i][1] };
+                if (this.isPathClear(start, end)) {
+                    optimized.push(originalPath[i]);
+                    lastValid = optimized.length - 1;
+                    break;
+                }
+            }
+        }
+        return optimized;
+    }
+
+    // 可视化初始化
+    initVisualization() {
+        this.canvas = document.createElement('canvas');
+        this.canvas.width = this.gridSize * 10;
+        this.canvas.height = this.gridSize * 10;
+        document.body.appendChild(this.canvas);
+        this.ctx = this.canvas.getContext('2d');
+    }
+
+    // 可视化更新
+    visualize(goal) {
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+        // 绘制树结构
+        this.tree.forEach(node => {
+            if (node.parent) {
+                this.ctx.beginPath();
+                this.ctx.moveTo(node.parent.position.x * 10 + 5, node.parent.position.y * 10 + 5);
+                this.ctx.lineTo(node.position.x * 10 + 5, node.position.y * 10 + 5);
+                this.ctx.strokeStyle = '#e0e0e0';
+                this.ctx.stroke();
+            }
+        });
+
+        // 绘制路径
+        if (this.path.length > 1) {
+            this.ctx.beginPath();
+            this.ctx.moveTo(this.path[0][0] * 10 + 5, this.path[0][1] * 10 + 5);
+            this.path.forEach(p => this.ctx.lineTo(p[0] * 10 + 5, p[1] * 10 + 5));
+            this.ctx.strokeStyle = '#ff0000';
+            this.ctx.lineWidth = 2;
+            this.ctx.stroke();
+        }
+
+        // 绘制障碍物
+        [...this.staticObstacles].forEach(coord => {
+            const [x, y] = coord.split(',').map(Number);
+            this.ctx.fillStyle = '#333333';
+            this.ctx.fillRect(x * 10, y * 10, 10, 10);
+        });
+
+        // 绘制目标点
+        this.ctx.fillStyle = '#00ff00';
+        this.ctx.beginPath();
+        this.ctx.arc(goal.x * 10 + 5, goal.y * 10 + 5, 5, 0, Math.PI * 2);
+        this.ctx.fill();
+    }
+
+    // 动态障碍处理
+    pruneCollidedNodes() {
+        this.tree = this.tree.filter(node => {
+            const coord = `${Math.round(node.position.x)},${Math.round(node.position.y)}`;
+            if (this.dynamicObstacles.has(coord)) {
+                if (node.parent) {
+                    const index = node.parent.children.indexOf(node);
+                    if (index > -1) node.parent.children.splice(index, 1);
+                }
+                return false;
+            }
+            return true;
+        });
+    }
+
+    // Bresenham直线算法
+    getLinePoints(start, end) {
+        const points = [];
+        let dx = Math.abs(end.x - start.x);
+        let dy = Math.abs(end.y - start.y);
+        const sx = (start.x < end.x) ? 1 : -1;
+        const sy = (start.y < end.y) ? 1 : -1;
+        let err = dx - dy;
+
+        let current = { ...start };
+
+        while (true) {
+            points.push({ x: current.x, y: current.y });
+            if (current.x === end.x && current.y === end.y) break;
+            const e2 = 2 * err;
+            if (e2 > -dy) {
+                err -= dy;
+                current.x += sx;
+            }
+            if (e2 < dx) {
+                err += dx;
+                current.y += sy;
+            }
+        }
+        return points;
+    }
+
+    // 异步延迟
+    delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
 }
 
 export default RRTPathPlanner; 
