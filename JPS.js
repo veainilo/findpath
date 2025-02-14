@@ -94,7 +94,7 @@ class JPS {
             iterations += 1;
             const current = openList.sort((a, b) => a.compareTo(b)).shift();
 
-            console.log(`Evaluating node: (${current.x}, ${current.y})`);
+            // console.log(`Evaluating node: (${current.x}, ${current.y})`);
 
             if (current.x === endNode.x && current.y === endNode.y) {
                 const path = [];
@@ -121,10 +121,10 @@ class JPS {
                         const nx = jumpPoint[0];
                         const ny = jumpPoint[1];
 
-                        console.log(`Jump Point found: (${nx}, ${ny})`);
+                        // console.log(`Jump Point found: (${nx}, ${ny})`);
 
                         if (this.isBlocked(nx, ny)) {
-                            console.log(`Jump Point (${nx}, ${ny}) is blocked.`);
+                            // console.log(`Jump Point (${nx}, ${ny}) is blocked.`);
                             continue;
                         }
 
@@ -159,10 +159,10 @@ class JPS {
                             const nx = jumpPoint[0];
                             const ny = jumpPoint[1];
 
-                            console.log(`Jump Point found: (${nx}, ${ny})`);
+                            // console.log(`Jump Point found: (${nx}, ${ny})`);
 
                             if (this.isBlocked(nx, ny)) {
-                                console.log(`Jump Point (${nx}, ${ny}) is blocked.`);
+                                // console.log(`Jump Point (${nx}, ${ny}) is blocked.`);
                                 continue;
                             }
 
