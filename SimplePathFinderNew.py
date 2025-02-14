@@ -270,7 +270,7 @@ class SimplePathFinder:
 
     def plot_path(self, path, title='路径可视化'):
         """显示绕行点的可视化方法"""
-        plt.figure(figsize=(8, 8))
+        plt.figure(figsize=(10, 10))
         
         # 显示网格和障碍物
         plt.imshow(self.grid, cmap='Greys', origin='lower',
@@ -279,18 +279,24 @@ class SimplePathFinder:
         
         # 绘制路径和绕行点
         if path:
-            # 绘制路径线段
+            # 直接连接路径点（红线显示主路径）
+            x_path = [p[1] for p in path]
+            y_path = [p[0] for p in path]
+            plt.plot(x_path, y_path, 'r-', linewidth=2, alpha=0.8, label='主路径')
+            
+            # 生成并显示所有中间路径点
+            all_path_points = []
             for i in range(len(path)-1):
                 start = path[i]
                 end = path[i+1]
-                # 获取路径点
                 line_points = self._bresenham_line(start, end)
-                # 绘制路径点
-                x_path = [p[1] for p in line_points]
-                y_path = [p[0] for p in line_points]
-                plt.plot(x_path, y_path, 'b.', markersize=5, alpha=0.5)
-                # 绘制连接线
-                plt.plot([start[1], end[1]], [start[0], end[0]], 'r-', linewidth=1, alpha=0.7)
+                all_path_points.extend(line_points)
+            
+            # 绘制所有路径点和连接线（蓝色）
+            x_points = [p[1] for p in all_path_points]
+            y_points = [p[0] for p in all_path_points]
+            plt.plot(x_points, y_points, 'b-', linewidth=1, alpha=0.5, label='实际路径')
+            plt.plot(x_points, y_points, 'bo', markersize=4, alpha=0.4)
             
             # 标记绕行点（排除起点和终点）
             if len(path) > 2:
@@ -304,13 +310,13 @@ class SimplePathFinder:
             # 标记起点终点
             start = path[0]
             end = path[-1]
-            plt.scatter(start[1], start[0], c='g', s=100, marker='s', label='起点')
-            plt.scatter(end[1], end[0], c='r', s=100, marker='*', label='终点')
+            plt.scatter(start[1], start[0], c='g', s=150, marker='s', label='起点', zorder=4)
+            plt.scatter(end[1], end[0], c='r', s=150, marker='*', label='终点', zorder=4)
         
         # 避免重复图例
         handles, labels = plt.gca().get_legend_handles_labels()
         by_label = dict(zip(labels, handles))
-        plt.legend(by_label.values(), by_label.keys())
+        plt.legend(by_label.values(), by_label.keys(), loc='upper right')
         
         plt.title(title)
         plt.grid(True, color='lightgray', linestyle='--')
