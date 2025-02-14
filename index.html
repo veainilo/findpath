@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,26 +11,32 @@
             margin: 20px;
             background-color: #f5f5f5;
         }
+
         .container {
             max-width: 1200px;
             margin: 0 auto;
         }
+
         canvas {
             border: 1px solid #ccc;
             background-color: white;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
             margin-bottom: 10px;
         }
+
         .algorithm-section {
             margin-bottom: 40px;
             padding: 20px;
             background-color: white;
             border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
-        h1, h2 {
+
+        h1,
+        h2 {
             color: #333;
         }
+
         button {
             padding: 10px 20px;
             margin: 10px;
@@ -40,44 +47,53 @@
             cursor: pointer;
             transition: background-color 0.3s;
         }
+
         button:hover {
             background-color: #45a049;
         }
+
         pre {
             background-color: #f8f8f8;
             padding: 10px;
             border-radius: 4px;
             overflow-x: auto;
         }
+
         .controls {
             margin: 20px 0;
             display: flex;
             gap: 10px;
             align-items: center;
         }
+
         .dynamic-controls {
             display: flex;
             gap: 10px;
             margin-bottom: 10px;
         }
+
         .dynamic-controls button {
             background-color: #2196F3;
         }
+
         .dynamic-controls button:hover {
             background-color: #1976D2;
         }
+
         .dynamic-controls button.stop {
             background-color: #f44336;
         }
+
         .dynamic-controls button.stop:hover {
             background-color: #d32f2f;
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <h1>路径规划算法可视化</h1>
-        
+
         <div class="controls">
             <button id="runAlgorithms">运行静态算法对比</button>
         </div>
@@ -127,7 +143,7 @@
             // 创建稀疏的大障碍物（5x5）
             const obstacleProbability = 0.05; // 降低生成概率
             const obstacleSize = 5; // 障碍物尺寸
-            
+
             for (let i = 1; i < gridSize - 1; i += obstacleSize + 2) { // 间隔生成
                 for (let j = 1; j < gridSize - 1; j += obstacleSize + 2) {
                     if (Math.random() < obstacleProbability) {
@@ -137,8 +153,8 @@
                                 const x = i + dx;
                                 const y = j + dy;
                                 // 确保不超出边界且不在起点/终点附近
-                                if (x < gridSize - 1 && y < gridSize - 1 
-                                    && !(x <= 5 && y <= 5) 
+                                if (x < gridSize - 1 && y < gridSize - 1
+                                    && !(x <= 5 && y <= 5)
                                     && !(x >= gridSize - 6 && y >= gridSize - 6)) {
                                     grid[x][y] = 1;
                                 }
@@ -151,12 +167,12 @@
             // 在对角线附近生成障碍物
             const diagonalObstacleProb = 0.3; // 对角线区域障碍物概率
             const diagonalWidth = 2; // 对角线两侧的宽度范围
-            
+
             for (let i = 1; i < gridSize - 1; i += obstacleSize + 2) {
                 for (let j = 1; j < gridSize - 1; j += obstacleSize + 2) {
                     // 判断是否在对角线区域（x ≈ y）
                     const isNearDiagonal = Math.abs(i - j) <= diagonalWidth;
-                    
+
                     if (isNearDiagonal && Math.random() < diagonalObstacleProb) {
                         // 生成3x3的障碍物（比普通障碍物小）
                         for (let dx = 0; dx < 3; dx++) {
@@ -164,8 +180,8 @@
                                 const x = i + dx;
                                 const y = j + dy;
                                 // 避开起点和终点区域
-                                if (x < gridSize - 3 && y < gridSize - 3 
-                                    && !(x <= 5 && y <= 5) 
+                                if (x < gridSize - 3 && y < gridSize - 3
+                                    && !(x <= 5 && y <= 5)
                                     && !(x >= gridSize - 6 && y >= gridSize - 6)) {
                                     grid[x][y] = 1;
                                 }
@@ -175,7 +191,7 @@
                 }
             }
 
-            const start = [0, 0];  
+            const start = [0, 0];
             const end = [gridSize - 1, gridSize - 1];
 
             // A* Algorithm
@@ -188,7 +204,7 @@
             // 添加分析
             const aStarAnalysis = `A* 算法分析: ${astar.nodesExplored} 个节点被探索，路径长度为 ${pathAStar ? pathAStar.length : 'N/A'}`;
             console.log(aStarAnalysis);
-            document.getElementById('resultsAStar').innerText = 
+            document.getElementById('resultsAStar').innerText =
                 `路径长度: ${pathAStar ? pathAStar.length : 'N/A'}\n` +
                 `探索节点数: ${astar.nodesExplored}\n` +
                 `执行时间: ${aStarTime} ms\n` +
@@ -205,7 +221,7 @@
             // 添加分析
             const biAStarAnalysis = `双向 A* 算法分析: ${biAStar.nodesExplored} 个节点被探索，路径长度为 ${pathBiAStar ? pathBiAStar.length : 'N/A'}`;
             console.log(biAStarAnalysis);
-            document.getElementById('resultsBiAStar').innerText = 
+            document.getElementById('resultsBiAStar').innerText =
                 `路径长度: ${pathBiAStar ? pathBiAStar.length : 'N/A'}\n` +
                 `探索节点数: ${biAStar.nodesExplored}\n` +
                 `执行时间: ${biAStarTime} ms\n` +
@@ -222,7 +238,7 @@
             // 添加分析
             const jpsAnalysis = `JPS 算法分析: ${jps.nodesExplored} 个节点被探索，路径长度为 ${pathJps ? pathJps.length : 'N/A'}`;
             console.log(jpsAnalysis);
-            document.getElementById('resultsJPS').innerText = 
+            document.getElementById('resultsJPS').innerText =
                 `路径长度: ${pathJps ? pathJps.length : 'N/A'}\n` +
                 `探索节点数: ${jps.nodesExplored}\n` +
                 `执行时间: ${jpsTime} ms\n` +
@@ -234,7 +250,7 @@
                 dynamicPlanner.stopAnimation();
             }
             dynamicPlanner = new DynamicPathPlanner(gridSize);
-            
+
             // 将网格障碍物转换为动态规划器的格式
             for (let i = 0; i < gridSize; i++) {
                 for (let j = 0; j < gridSize; j++) {
@@ -246,8 +262,8 @@
 
             const startDynamicTime = performance.now();
             const pathDynamic = await dynamicPlanner.findPath(
-                {x: start[0], y: start[1]}, 
-                {x: end[0], y: end[1]}
+                { x: start[0], y: start[1] },
+                { x: end[0], y: end[1] }
             );
             const endDynamicTime = performance.now();
             const dynamicTime = (endDynamicTime - startDynamicTime).toFixed(2);
@@ -297,7 +313,7 @@ ${dynamicAnalysis}
             if (dynamicPlanner) {
                 const x = Math.floor(Math.random() * dynamicPlanner.gridSize);
                 const y = Math.floor(Math.random() * dynamicPlanner.gridSize);
-                dynamicPlanner.dynamicObstacles.add({x, y});
+                dynamicPlanner.dynamicObstacles.add({ x, y });
             }
         });
 
@@ -343,11 +359,11 @@ ${dynamicAnalysis}
                 ctx.strokeStyle = '#4CAF50';
                 ctx.lineWidth = 2;
                 ctx.beginPath();
-                ctx.moveTo(currentPath[0][1] * cellSize + cellSize/2, 
-                          currentPath[0][0] * cellSize + cellSize/2);
+                ctx.moveTo(currentPath[0][1] * cellSize + cellSize / 2,
+                    currentPath[0][0] * cellSize + cellSize / 2);
                 for (let i = 1; i < currentPath.length; i++) {
-                    ctx.lineTo(currentPath[i][1] * cellSize + cellSize/2,
-                              currentPath[i][0] * cellSize + cellSize/2);
+                    ctx.lineTo(currentPath[i][1] * cellSize + cellSize / 2,
+                        currentPath[i][0] * cellSize + cellSize / 2);
                 }
                 ctx.stroke();
 
@@ -355,27 +371,28 @@ ${dynamicAnalysis}
                 for (const [i, j] of currentPath) {
                     ctx.fillStyle = '#4CAF50';
                     ctx.beginPath();
-                    ctx.arc(j * cellSize + cellSize/2, i * cellSize + cellSize/2, 
-                           cellSize/4, 0, Math.PI * 2);
+                    ctx.arc(j * cellSize + cellSize / 2, i * cellSize + cellSize / 2,
+                        cellSize / 4, 0, Math.PI * 2);
                     ctx.fill();
                 }
 
                 // 特别标记起点和终点
                 ctx.fillStyle = '#2196F3';
                 ctx.beginPath();
-                ctx.arc(currentPath[0][1] * cellSize + cellSize/2,
-                       currentPath[0][0] * cellSize + cellSize/2,
-                       cellSize/3, 0, Math.PI * 2);
+                ctx.arc(currentPath[0][1] * cellSize + cellSize / 2,
+                    currentPath[0][0] * cellSize + cellSize / 2,
+                    cellSize / 3, 0, Math.PI * 2);
                 ctx.fill();
 
                 ctx.fillStyle = '#f44336';
                 ctx.beginPath();
-                ctx.arc(currentPath[currentPath.length-1][1] * cellSize + cellSize/2,
-                       currentPath[currentPath.length-1][0] * cellSize + cellSize/2,
-                       cellSize/3, 0, Math.PI * 2);
+                ctx.arc(currentPath[currentPath.length - 1][1] * cellSize + cellSize / 2,
+                    currentPath[currentPath.length - 1][0] * cellSize + cellSize / 2,
+                    cellSize / 3, 0, Math.PI * 2);
                 ctx.fill();
             }
         }
     </script>
 </body>
+
 </html>
