@@ -32,7 +32,7 @@ class JPS:
     def heuristic(self, node, goal):
         dx = abs(node.x - goal.x)
         dy = abs(node.y - goal.y)
-        return 10 * (dx + dy) + (14 - 2 * 10) * min(dx, dy)  # 修正为与A*相同的启发函数
+        return 10 * (dx + dy) + (14 - 20) * min(dx, dy)  # 修正后的Octile距离
 
     def jump(self, x, y, dx, dy, goal):
         cache_key = (x, y, dx, dy)

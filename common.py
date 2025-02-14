@@ -8,31 +8,64 @@ import random
 plt.rcParams['font.sans-serif'] = ['SimHei']  # 简体中文默认字体
 plt.rcParams['axes.unicode_minus'] = False  # 解决负号显示问题
 
-def visualize(grid, path=None, title="", stats=None, ax=None):
-    cmap = colors.ListedColormap(['white', 'black', 'red', 'green', 'blue'])
+def visualize(grid, path, title, stats, ax=None):
     if ax is None:
-        fig, ax = plt.subplots()
-    ax.imshow(grid, cmap=cmap)
+        fig, ax = plt.subplots(figsize=(10, 10))
     
+    # 绘制路径（更醒目的样式）
     if path:
-        path_x = [p[1] for p in path]
-        path_y = [p[0] for p in path]
-        ax.plot(path_x, path_y, c='blue', linewidth=2)
+        ax.plot(
+            [p[1] for p in path], 
+            [p[0] for p in path], 
+            color='#1E90FF',  # 道奇蓝
+            linewidth=2.5,
+            linestyle='-',
+            marker='o',
+            markersize=6,
+            markerfacecolor='white',
+            markeredgewidth=1,
+            label='规划路径',
+            zorder=2
+        )
     
-    legend = [
-        mpatches.Patch(color='white', label='可行区域'),
-        mpatches.Patch(color='black', label='障碍物'),
-        mpatches.Patch(color='blue', label='路径')
-    ]
-    ax.legend(handles=legend, bbox_to_anchor=(1.05, 1), loc='upper left')
-    ax.set_title(f"{title}\n路径长度: {len(path) if path else '无'}", fontsize=10)
+    # 优化统计信息显示
+    textstr = '\n'.join([
+        f"▸ 探索节点: {stats['nodes']}",
+        f"▸ 计算耗时: {stats['time']:.2f} ms",
+        f"▸ 路径长度: {len(path) if path else '无'}"
+    ])
     
-    if stats:
-        stats_text = f"探索节点: {stats.get('nodes', 'N/A')}\n耗时: {stats.get('time', 'N/A')}ms\n跳跃次数: {stats.get('jumps', 'N/A')}"
-        ax.text(0.5, -0.15, stats_text, transform=ax.transAxes, ha='center', fontsize=9)
+    ax.text(
+        0.05, 0.95, 
+        textstr, 
+        transform=ax.transAxes,
+        verticalalignment='top',
+        bbox=dict(
+            boxstyle='round', 
+            facecolor='white', 
+            alpha=0.8,
+            edgecolor='lightgray'
+        ),
+        fontsize=11,
+        linespacing=1.5
+    )
     
-    plt.tight_layout()
-    return ax
+    # 设置标题样式
+    ax.set_title(
+        title, 
+        fontsize=14, 
+        pad=20, 
+        fontweight='bold',
+        color='#2F4F4F'
+    )
+    
+    # 设置坐标轴范围
+    ax.set_xlim(-0.5, len(grid[0])-0.5)
+    ax.set_ylim(len(grid)-0.5, -0.5)  # 反转Y轴保持矩阵显示
+    
+    # 如果未传入ax则自动显示
+    if ax is None:
+        plt.show()
 
 def generate_random_grid(size, obstacle_prob=0.2):
     """生成保证起点终点连通的随机网格"""
