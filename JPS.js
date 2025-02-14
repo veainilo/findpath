@@ -11,6 +11,10 @@ class Node {
     compareTo(other) {
         return this.f - other.f;
     }
+
+    equals(other) {
+        return this.x === other.x && this.y === other.y;
+    }
 }
 
 class PriorityQueue {
@@ -62,14 +66,14 @@ class JPS {
         let nx = x + dx;
         let ny = y + dy;
 
-        if (this.isBlocked(nx, ny)) {
+        if (this.isBlocked(x, y)) {
             this.jumpCache[cacheKey] = null;
             return null;
         }
 
-        if (nx === goal.x && ny === goal.y) {
-            this.jumpCache[cacheKey] = [nx, ny];
-            return [nx, ny];
+        if (x === goal.x && y === goal.y) {
+            this.jumpCache[cacheKey] = [x, y];
+            return [x, y];
         }
 
         // 检查强制邻居
@@ -80,17 +84,26 @@ class JPS {
 
         // 对角线移动时需要检查水平和垂直方向
         if (dx !== 0 && dy !== 0) {
-            // 同时检查两个正交方向
-            if (this.jump(nx, ny, dx, 0, goal) !== null || 
-                this.jump(nx, ny, 0, dy, goal) !== null) {
+            // 修改为同时检查三个方向
+            const horizontal = this.jump(nx, ny, dx, 0, goal);
+            const vertical = this.jump(nx, ny, 0, dy, goal);
+            if (horizontal !== null || vertical !== null) {
                 this.jumpCache[cacheKey] = [nx, ny];
                 return [nx, ny];
             }
             
-            // 添加斜向强制邻居检查
-            if ((this.isBlocked(nx - dx, ny) && !this.isBlocked(nx - dx, ny + dy)) ||
-                (this.isBlocked(nx, ny - dy) && !this.isBlocked(nx + dx, ny - dy))) {
-                return [nx, ny];
+            // 增强对角线强制邻居检测
+            const dirs = [
+                [dx, 0],  // 原水平方向
+                [0, dy],  // 原垂直方向
+                [dx, dy]  // 原对角线方向
+            ];
+            
+            for (const [ndx, ndy] of dirs) {
+                if (this.hasForcedNeighbor(nx, ny, ndx, ndy)) {
+                    this.jumpCache[cacheKey] = [nx, ny];
+                    return [nx, ny];
+                }
             }
         }
 
@@ -219,6 +232,23 @@ class JPS {
                     }
                 }
             }
+
+            // 修改直接邻居检测部分
+            if (Math.abs(current.x - endNode.x) <= 1 && 
+                Math.abs(current.y - endNode.y) <= 1) {
+                const finalNode = new Node(endNode.x, endNode.y, current);
+                
+                // 添加路径重建代码
+                const path = [];
+                let temp = finalNode;
+                while (temp) {
+                    path.push([temp.x, temp.y]);
+                    temp = temp.parent;
+                }
+                this.executionTime = performance.now() - startTime;
+                this.pathLength = path.length;
+                return path;
+            }
         }
 
         this.executionTime = performance.now() - startTime;
@@ -270,7 +300,9 @@ class JPS {
     }
 
     isBlocked(x, y) {
-        return !(x >= 0 && x < this.height && y >= 0 && y < this.width) || this.grid[x][y] === 1;
+        return x < 0 || x >= this.height || 
+               y < 0 || y >= this.width || 
+               this.grid[x][y] === 1;
     }
 }
 
